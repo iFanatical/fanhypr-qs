@@ -1,0 +1,55 @@
+#!/bin/sh
+# fanhypr-qs-power — power actions for the System dropdown's power buttons.
+# This host is OpenRC + elogind (no systemd/systemctl), so power-off/reboot/
+# suspend go through loginctl, which talks to elogind the same way it would
+# talk to systemd-logind. loginctl's polkit rules decide whether the active
+# session user can do these without a password prompt.
+set -eu
+
+lock() {
+	# Try installed lockers in order. hyprlock is first: it talks to the
+	# Hyprland IPC socket and is the native choice here; swaylock is the
+	# generic Wayland fallback. With none of them installed, loginctl
+	# lock-session is just the standard "Lock" signal -- it won't visibly
+	# lock the screen until a locker (or a listener like swayidle) is
+	# present.
+	for locker in hyprlock swaylock; do
+		if command -v "$locker" >/dev/null 2>&1; then
+			"$locker" &
+			exit 0
+		fi
+	done
+	loginctl lock-session
+}
+
+logout() {
+	# Hyprland has a first-class exit dispatcher, so unlike the dwm build
+	# there is nothing to pkill: this is the same clean shutdown path as
+	# an `exit` keybind, and it tears the session down in order.
+	#
+	# Hyprland 0.56 moved dispatch behind a Lua API, where the argument is
+	# evaluated as `hl.dispatch(<arg>)`; the bare word `exit` is an
+	# undefined Lua global there, so it fails silently. Try the new
+	# spelling first and fall back to the classic one for older builds.
+	if command -v hyprctl >/dev/null 2>&1; then
+		if [ "$(hyprctl dispatch 'hl.dsp.exit()' 2>&1)" = "ok" ]; then
+			exit 0
+		fi
+		if [ "$(hyprctl dispatch exit 2>&1)" = "ok" ]; then
+			exit 0
+		fi
+	fi
+	loginctl terminate-session "${XDG_SESSION_ID:-}"
+}
+
+case "${1:-}" in
+poweroff) exec loginctl poweroff ;;
+reboot)   exec loginctl reboot ;;
+suspend)  exec loginctl suspend ;;
+lock)     lock ;;
+logout)   logout ;;
+*)
+	printf 'usage: %s [poweroff|reboot|suspend|lock|logout]\n' "$0" >&2
+	exit 2
+	;;
+esac

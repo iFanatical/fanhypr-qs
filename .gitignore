@@ -1,0 +1,7 @@
+# Editor / tooling
+.claude
+
+# Build output
+*.o
+/shell/fanhypr-qs-shell
+/shell/moc_*.cpp

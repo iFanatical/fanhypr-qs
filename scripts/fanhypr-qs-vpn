@@ -1,0 +1,59 @@
+#!/bin/sh
+# fanhypr-qs-vpn — WireGuard tunnel control for the panel's VPN widget.
+# Mirrors ~/.local/bin/vpn.sh (tunnel "tun1"), but emits key=value status the
+# panel can parse. wg-quick needs root; we use sudo -n (passwordless) when not
+# already root. Override the tunnel with $FANHYPR_QS_VPN_TUNNEL.
+set -eu
+
+TUNNEL="${FANHYPR_QS_VPN_TUNNEL:-tun1}"
+
+run_wg() {
+	if [ "$(id -u)" -eq 0 ]; then
+		wg-quick "$@"
+	else
+		sudo -n wg-quick "$@"
+	fi
+}
+
+is_up() {
+	ip link show "$TUNNEL" >/dev/null 2>&1
+}
+
+print_status() {
+	if is_up; then
+		ip_addr=$(ip -o -4 addr show "$TUNNEL" 2>/dev/null | awk '{print $4; exit}')
+		printf 'state=up\n'
+		printf 'iface=%s\n' "$TUNNEL"
+		printf 'ip=%s\n' "${ip_addr:-}"
+	else
+		printf 'state=down\n'
+		printf 'iface=%s\n' "$TUNNEL"
+		printf 'ip=\n'
+	fi
+}
+
+case "${1:-status}" in
+status)
+	print_status
+	;;
+up)
+	is_up || run_wg up "$TUNNEL" >/dev/null 2>&1 || true
+	print_status
+	;;
+down)
+	! is_up || run_wg down "$TUNNEL" >/dev/null 2>&1 || true
+	print_status
+	;;
+toggle)
+	if is_up; then
+		run_wg down "$TUNNEL" >/dev/null 2>&1 || true
+	else
+		run_wg up "$TUNNEL" >/dev/null 2>&1 || true
+	fi
+	print_status
+	;;
+*)
+	printf 'usage: %s [status|toggle|up|down]\n' "$0" >&2
+	exit 2
+	;;
+esac
