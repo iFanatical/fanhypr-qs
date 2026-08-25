@@ -9,6 +9,7 @@
 #include "battery.h"
 #include "calendar.h"
 #include "network.h"
+#include "notification.h"
 #include "pills.h"
 #include "system.h"
 #include "tray.h"
@@ -120,7 +121,7 @@ Panel::Panel(HyprState *state, QScreen *screen)
     auto *rightRow = new QHBoxLayout(m_rightBox);
     rightRow->setContentsMargins(0, 0, 0, 0);
     rightRow->setSpacing(Theme::rowSpacing);
-    rightRow->addWidget(new DunstWidget(m_rightBox), 0, Qt::AlignVCenter);
+    rightRow->addWidget(new NotificationWidget(m_rightBox), 0, Qt::AlignVCenter);
     rightRow->addWidget(new SubmapWidget(m_rightBox), 0, Qt::AlignVCenter);
     rightRow->addWidget(new NetworkWidget(m_rightBox), 0, Qt::AlignVCenter);
     /* Battery groups with the other status pills rather than sitting past the

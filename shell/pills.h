@@ -1,5 +1,4 @@
-/* Script-backed bar pills: the dunst do-not-disturb toggle and the VPN
- * tunnel toggle. */
+/* Script-backed bar pills and singleton state helpers. */
 #ifndef FANHYPR_QS_PILLS_H
 #define FANHYPR_QS_PILLS_H
 
@@ -26,30 +25,6 @@ private:
     bool m_hasFixedTint = false;
 };
 
-/* Dunst state, refreshed via IPC (no polling). */
-class DunstService : public QObject {
-    Q_OBJECT
-public:
-    static DunstService *instance();
-
-    bool paused = false;
-    int count = 0;
-
-    void refresh();
-    void toggle();
-
-signals:
-    void changed();
-
-private:
-    explicit DunstService(QObject *parent = nullptr);
-    void parse(const QString &text);
-
-    CollectorProcess m_statusProc;
-    CollectorProcess m_toggleProc;
-};
-
-/* Dunst do-not-disturb toggle pill. */
 /* Active Hyprland keybind submap. Shows "global" in the default one -- always
  * visible rather than hiding when there is nothing to report, because the
  * point of a modal-keybind indicator is telling you which mode you are in,
@@ -58,15 +33,6 @@ class SubmapWidget : public BarPill {
     Q_OBJECT
 public:
     explicit SubmapWidget(QWidget *parent = nullptr);
-
-private:
-    void sync();
-};
-
-class DunstWidget : public BarPill {
-    Q_OBJECT
-public:
-    explicit DunstWidget(QWidget *parent = nullptr);
 
 private:
     void sync();

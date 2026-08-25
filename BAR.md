@@ -16,6 +16,7 @@ widgets/pills      shared leaf widgets (BarPill, ShellButton, ValueSlider, …)
 tray/traymenu      StatusNotifierItem host + com.canonical.dbusmenu client
 network bluetooth volume battery system calendar clipboard   the widgets
 ipc.{h,cpp}        control socket for `fanhypr-qs-shell ipc call …`
+notification       freedesktop notification daemon, toast stack + history
 theme.h            all colours, sizes, fonts, and the two layout knobs
 ```
 
@@ -193,7 +194,7 @@ one widget hide itself or show defaults.
   k10temp (AMD) or coretemp (Intel) `hwmon` node, else that row hides itself.
 - **Weather** — `curl`; hits wttr.in (no API key, geolocates by IP).
   Fahrenheit by default, `$FANHYPR_QS_WEATHER_UNIT=C` for Celsius.
-- **Notifications** — `dunstctl` (dunst) for the do-not-disturb toggle.
+- **Notifications** — native over the session DBus; no dunst or helper script.
 - **Submap** — none; straight off the Hyprland event stream.
 - **Wallpaper** — `awww` (an swww fork) with `awww-daemon` running.
 - **Power draw** (desktops) — none for GPU; CPU needs the RAPL udev rule,
@@ -276,7 +277,7 @@ per compositor instance so two sessions on one machine don't collide.
 ```
 fanhypr-qs-shell ipc call launcher toggle|show|hide
 fanhypr-qs-shell ipc call runner   toggle|show|hide
-fanhypr-qs-shell ipc call dunst    toggle|refresh
+fanhypr-qs-shell ipc call notifications toggle-dnd
 fanhypr-qs-shell ipc call vpn      toggle|refresh
 fanhypr-qs-shell ipc call wallpaper toggle|show|hide
 ```

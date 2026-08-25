@@ -50,7 +50,7 @@ end)
 
 hl.bind("SUPER + D",         hl.dsp.exec_cmd("fanhypr-qs-shell ipc call launcher toggle"))
 hl.bind("SUPER + SHIFT + D", hl.dsp.exec_cmd("fanhypr-qs-shell ipc call runner toggle"))
-hl.bind("SUPER + N",         hl.dsp.exec_cmd("fanhypr-qs-shell ipc call dunst toggle"))
+hl.bind("SUPER + N",         hl.dsp.exec_cmd("fanhypr-qs-shell ipc call notifications toggle-dnd"))
 hl.bind("SUPER + V",         hl.dsp.exec_cmd("fanhypr-qs-shell ipc call vpn toggle"))
 hl.bind("SUPER + W",         hl.dsp.exec_cmd("fanhypr-qs-shell ipc call wallpaper toggle"))
 ```
@@ -62,7 +62,7 @@ exec-once = fanhypr-qs-shell --no-duplicate
 
 bind = SUPER, D,       exec, fanhypr-qs-shell ipc call launcher toggle
 bind = SUPER SHIFT, D, exec, fanhypr-qs-shell ipc call runner toggle
-bind = SUPER, N,       exec, fanhypr-qs-shell ipc call dunst toggle
+bind = SUPER, N,       exec, fanhypr-qs-shell ipc call notifications toggle-dnd
 bind = SUPER, V,       exec, fanhypr-qs-shell ipc call vpn toggle
 bind = SUPER, W,       exec, fanhypr-qs-shell ipc call wallpaper toggle
 ```
@@ -97,6 +97,51 @@ whichever output has focus, so it appears where you are working.
 
 Colours follow the dwm tag convention: **active** purple/pink, **has windows** white,
 **empty** gray.
+
+### Notifications
+
+The shell is its own freedesktop notification daemon; do not start dunst or
+another daemon alongside it. It owns `org.freedesktop.Notifications`, renders a
+scrollable stack below the upper-right of the tray output, and keeps the last
+20 notifications in memory for the life of the bar.
+
+Each toast shows its arrival time at the right. Notification image data (for
+example, a message avatar supplied by Discord) appears beneath the timestamp,
+separate from the sending application's icon on the left.
+
+Left-click the bell on any output to open history on that output. Right-click
+toggles do-not-disturb globally. Critical notifications bypass do-not-disturb
+and remain visible until explicitly dismissed; hovering a toast pauses its
+timeout. Clicking a toast invokes the application's default action when one was
+provided. Otherwise the shell focuses a Hyprland window only when the DBus
+sender PID identifies exactly one client—ambiguous matches are never guessed.
+
+The former dunst rules are built in: normal notifications use the shell's
+purple/pink accent, critical notifications are red, and special
+colors for notifications whose application name is `volume`, `brightness`,
+`network`, or `screenshot`, plus warning summaries. Volume and brightness are
+still ordinary notifications for now; they are natural candidates for a
+dedicated OSD later.
+
+Toast backgrounds are translucent; their alpha is
+`Theme::notificationOpacity` in `shell/theme.h`. Background blur is a
+compositor effect—a Wayland client cannot sample surfaces behind itself—so
+enable it for the toast's dedicated layer namespace in `hyprland.lua`:
+
+```lua
+hl.layer_rule({
+    match = { namespace = "fanhypr-qs-notifications" },
+    blur = true,
+    ignore_alpha = 0.1,
+})
+```
+
+The equivalent legacy `hyprland.conf` rules are:
+
+```ini
+layerrule = blur on, match:namespace fanhypr-qs-notifications
+layerrule = ignore_alpha 0.1, match:namespace fanhypr-qs-notifications
+```
 
 ### Power draw (desktops)
 

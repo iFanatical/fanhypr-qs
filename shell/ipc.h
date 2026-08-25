@@ -2,7 +2,7 @@
  * this is what a Hyprland `bind` invokes to raise the launcher:
  *   fanhypr-qs-shell ipc call launcher toggle|show|hide
  *   fanhypr-qs-shell ipc call runner   toggle|show|hide
- *   fanhypr-qs-shell ipc call dunst    toggle|refresh
+ *   fanhypr-qs-shell ipc call notifications toggle-dnd
  * A QLocalServer on $XDG_RUNTIME_DIR keyed by $DISPLAY. */
 #ifndef FANHYPR_QS_IPC_H
 #define FANHYPR_QS_IPC_H

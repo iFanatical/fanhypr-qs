@@ -85,6 +85,9 @@ inline constexpr int panelFontSize       = 13;
 inline constexpr int bodyFontSize        = 14;
 inline constexpr int titleFontSize       = 16;
 inline constexpr int maxTitleWidth       = 420;
+/* Toast card opacity. Hyprland supplies background blur through a layer rule,
+ * but the client controls how much of that blurred background shows through. */
+inline constexpr int notificationOpacity = 170; /* 0 transparent .. 255 opaque */
 
 inline QFont font(int pixelSize, bool bold = false)
 {

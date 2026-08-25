@@ -56,51 +56,6 @@ void ScriptPill::parse(const QString &out)
     setVisible(!tx.isEmpty() || !ic.isEmpty()); /* hideWhenEmpty */
 }
 
-/* ------------------------------------------------------------ DunstService */
-
-DunstService *DunstService::instance()
-{
-    static DunstService *s = new DunstService();
-    return s;
-}
-
-DunstService::DunstService(QObject *parent) : QObject(parent)
-{
-    m_statusProc.setCommand({"fanhypr-qs-dunst", "status"});
-    m_toggleProc.setCommand({"fanhypr-qs-dunst", "toggle"});
-    connect(&m_statusProc, &CollectorProcess::finished, this,
-            &DunstService::parse);
-    connect(&m_toggleProc, &CollectorProcess::finished, this,
-            &DunstService::parse);
-    refresh();
-}
-
-void DunstService::refresh()
-{
-    m_statusProc.start();
-}
-
-void DunstService::toggle()
-{
-    m_toggleProc.start();
-}
-
-void DunstService::parse(const QString &text)
-{
-    const QStringList lines = text.trimmed().split('\n');
-    for (const QString &l : lines) {
-        const int i = l.indexOf('=');
-        if (i < 0)
-            continue;
-        const QString k = l.left(i), v = l.mid(i + 1);
-        if (k == QLatin1String("paused"))
-            paused = (v == QLatin1String("true"));
-        else if (k == QLatin1String("count"))
-            count = v.toInt();
-    }
-    emit changed();
-}
-
 /* ------------------------------------------------------------ SubmapWidget */
 
 SubmapWidget::SubmapWidget(QWidget *parent) : BarPill(parent)
@@ -122,29 +77,6 @@ void SubmapWidget::sync()
      * mute the default one so it reads as "nothing to see here". */
     setTint(active ? Theme::accent : Theme::textMuted);
     setActive(active);
-}
-
-/* ------------------------------------------------------------- DunstWidget */
-
-DunstWidget::DunstWidget(QWidget *parent) : BarPill(parent)
-{
-    connect(DunstService::instance(), &DunstService::changed, this,
-            &DunstWidget::sync);
-    connect(this, &BarPill::clicked, DunstService::instance(),
-            &DunstService::toggle);
-    connect(this, &BarPill::rightClicked, DunstService::instance(),
-            &DunstService::refresh);
-    sync();
-}
-
-void DunstWidget::sync()
-{
-    DunstService *d = DunstService::instance();
-    setIcon(d->paused ? glyph(U'') : glyph(U''));
-    setLabel((d->paused && d->count > 0) ? QString::number(d->count)
-                                         : QString());
-    setTint(d->paused ? Theme::red : Theme::text);
-    setActive(d->paused);
 }
 
 /* ---------------------------------------------------------------- VpnState */

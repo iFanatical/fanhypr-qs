@@ -3,7 +3,7 @@
  *
  *   fanhypr-qs-shell [--no-duplicate]        run the shell
  *   fanhypr-qs-shell ipc call <target> <fn>  poke a running instance
- *                    (targets: launcher, runner, dunst, vpn,
+ *                    (targets: launcher, runner, notifications, vpn,
  *                     wallpaper) */
 #include <QApplication>
 #include <QHash>
@@ -13,6 +13,7 @@
 #include "hyprstate.h"
 #include "ipc.h"
 #include "launcher.h"
+#include "notification.h"
 #include "panel.h"
 #include "wallpaper.h"
 #include "pills.h"
@@ -59,6 +60,10 @@ int main(int argc, char *argv[])
                 "appears.\n");
 
     HyprState *state = HyprState::instance();
+    if (!NotificationService::instance()->start())
+        fprintf(stderr,
+                "fanhypr-qs-shell: cannot own org.freedesktop.Notifications "
+                "-- stop dunst or another notification daemon first.\n");
 
     /* One panel per output, following hotplug. */
     QHash<QScreen *, Panel *> panels;
@@ -101,10 +106,11 @@ int main(int argc, char *argv[])
                 [launcher]() { launcher->openMode(QStringLiteral("run")); });
     ipc->handle(QStringLiteral("runner"), QStringLiteral("hide"),
                 [launcher]() { launcher->hideLauncher(); });
+    ipc->handle(QStringLiteral("notifications"), QStringLiteral("toggle-dnd"),
+                []() { NotificationService::instance()->toggleDnd(); });
+    /* Compatibility with the old keybind while migrating away from dunst. */
     ipc->handle(QStringLiteral("dunst"), QStringLiteral("toggle"),
-                []() { DunstService::instance()->toggle(); });
-    ipc->handle(QStringLiteral("dunst"), QStringLiteral("refresh"),
-                []() { DunstService::instance()->refresh(); });
+                []() { NotificationService::instance()->toggleDnd(); });
     ipc->handle(QStringLiteral("vpn"), QStringLiteral("toggle"),
                 []() { VpnState::instance()->toggle(); });
     ipc->handle(QStringLiteral("vpn"), QStringLiteral("refresh"),
