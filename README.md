@@ -112,9 +112,11 @@ separate from the sending application's icon on the left.
 Left-click the bell on any output to open history on that output. Right-click
 toggles do-not-disturb globally. Critical notifications bypass do-not-disturb
 and remain visible until explicitly dismissed; hovering a toast pauses its
-timeout. Clicking a toast invokes the application's default action when one was
-provided. Otherwise the shell focuses a Hyprland window only when the DBus
-sender PID identifies exactly one client—ambiguous matches are never guessed.
+timeout. The history header has a **Clear all** button that dismisses visible
+toasts and empties the in-memory history. Clicking a toast invokes the
+application's default action when one was provided. Otherwise the shell focuses
+a Hyprland window only when the DBus sender PID identifies exactly one
+client—ambiguous matches are never guessed.
 
 The former dunst rules are built in: normal notifications use the shell's
 purple/pink accent, critical notifications are red, and special
@@ -124,9 +126,12 @@ still ordinary notifications for now; they are natural candidates for a
 dedicated OSD later.
 
 Toast backgrounds are translucent; their alpha is
-`Theme::notificationOpacity` in `shell/theme.h`. Background blur is a
-compositor effect—a Wayland client cannot sample surfaces behind itself—so
-enable it for the toast's dedicated layer namespace in `hyprland.lua`:
+`Theme::notificationOpacity` in `shell/theme.h`. The toast box shadow mirrors
+a Hyprland range-4, power-3 shadow but uses the much softer
+`Theme::notificationShadowAlpha`; Hyprland does not apply window-decoration
+shadows to layer surfaces. Background blur is a compositor effect—a Wayland
+client cannot sample surfaces behind itself—so enable it for the toast's
+dedicated layer namespace in `hyprland.lua`:
 
 ```lua
 hl.layer_rule({

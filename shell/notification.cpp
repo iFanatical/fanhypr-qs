@@ -18,6 +18,7 @@
 #include <QLocale>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QRadialGradient>
 #include <QScreen>
 #include <QStandardPaths>
 #include <QTextDocumentFragment>
@@ -40,12 +41,15 @@ constexpr int toastWidth = 360;
 constexpr int toastGap = 6;
 constexpr int toastPadding = 12;
 constexpr int toastEdgePadding = 12;
-/* Enough transparent space above a toast to contain the close button without
- * clipping its antialiased edge. */
-constexpr int closeOverhang = 10;
+constexpr int toastVerticalOffset = 2;
+constexpr int toastHorizontalOffset = 4;
+/* Enough transparent space above a toast to contain the close button and its
+ * matched range-4 shadow without clipping either. */
+constexpr int closeOverhang = 13;
 constexpr int closeRadius = 9;
 constexpr int rightColumnWidth = 68;
 constexpr int notificationImageSize = 56;
+constexpr int toastShadowRange = 4;
 
 QString plainText(const QString &text)
 {
@@ -120,7 +124,9 @@ QString timestampText(const Notification &n)
 /* Shared row geometry for the toast stack and history view. */
 int rowHeight(const Notification &n, int width, bool history = false)
 {
-    const int textWidth = width - toastPadding * 2 - rightColumnWidth - 8
+    const int shadowWidth = history ? 0 : toastShadowRange * 2;
+    const int textWidth = width - shadowWidth - toastPadding * 2
+                          - rightColumnWidth - 8
                           - (n.icon.isNull() ? 0 : 42);
     QFontMetrics titleFm(Theme::font(Theme::bodyFontSize, true));
     QFontMetrics bodyFm(Theme::font(Theme::smallFontSize));
@@ -133,7 +139,7 @@ int rowHeight(const Notification &n, int width, bool history = false)
     const int sideHeight = toastPadding * 2 + Theme::tinyFontSize + 4
                            + (n.image.isNull() ? 0 : notificationImageSize);
     const int content = qMax(64, qMax(textHeight, sideHeight));
-    return content + (history ? 0 : closeOverhang);
+    return content + (history ? 0 : closeOverhang + toastShadowRange);
 }
 
 void paintNotification(QPainter &p, const Notification &n, const QRect &outer,
@@ -142,11 +148,32 @@ void paintNotification(QPainter &p, const Notification &n, const QRect &outer,
     /* Toasts reserve space above the card for a macOS-style close circle
      * straddling its top edge. History rows stay inside their popup and do
      * not expose that dismiss affordance. */
-    const QRect card = history ? outer : outer.adjusted(0, closeOverhang, 0, 0);
+    const QRect card = history
+                           ? outer
+                           : outer.adjusted(toastShadowRange, closeOverhang,
+                                            -toastShadowRange,
+                                            -toastShadowRange);
     const QColor border = n.color.isValid() ? n.color : Theme::accent;
     QColor fill = Theme::bg;
-    if (!history)
+    if (!history) {
+        /* Match Hyprland's range=4 / render_power=3 shape, but with a much
+         * softer maximum alpha than the user's 0xee window shadow. Draw from
+         * outside inward; the opaque card covers the middle, leaving only a
+         * four-pixel cubic falloff around the box. */
+        p.setPen(Qt::NoPen);
+        for (int spread = toastShadowRange; spread >= 1; --spread) {
+            const qreal strength =
+                qreal(toastShadowRange - spread + 1) / toastShadowRange;
+            QColor shadow = Theme::bg;
+            shadow.setAlpha(qRound(Theme::notificationShadowAlpha
+                                   * strength * strength * strength));
+            p.setBrush(shadow);
+            p.drawRoundedRect(card.adjusted(-spread, -spread, spread, spread),
+                              Theme::radius + spread,
+                              Theme::radius + spread);
+        }
         fill.setAlpha(Theme::notificationOpacity);
+    }
     Theme::paintRect(p, card, fill, Theme::radius, border, 2);
 
     int x = card.left() + toastPadding;
@@ -192,12 +219,36 @@ void paintNotification(QPainter &p, const Notification &n, const QRect &outer,
     if (hovered && !history) {
         const QPoint c(card.left() + closeRadius + 7, card.top());
         p.setPen(Qt::NoPen);
-        p.setBrush(closeHovered ? Theme::tagEmpty : Theme::brightblack);
+        /* The button exists only while the toast is hovered, so its matching
+         * shadow is painted in the same branch and disappears with it. */
+        for (int spread = toastShadowRange; spread >= 1; --spread) {
+            const qreal strength =
+                qreal(toastShadowRange - spread + 1) / toastShadowRange;
+            QColor shadow = Theme::bg;
+            shadow.setAlpha(qRound(Theme::notificationShadowAlpha
+                                   * strength * strength * strength));
+            p.setBrush(shadow);
+            p.drawEllipse(c, closeRadius + spread, closeRadius + spread);
+        }
+        /* A centred internal gradient gives the disc subtle convex weight
+         * without directional shading or anything painted outside it. */
+        const QPointF center(c);
+        QRadialGradient button(center, closeRadius, center);
+        if (closeHovered) {
+            button.setColorAt(0.0, Theme::textMuted);
+            button.setColorAt(0.62, Theme::tagEmpty);
+            button.setColorAt(1.0, Theme::brightblack);
+        } else {
+            button.setColorAt(0.0, Theme::tagEmpty);
+            button.setColorAt(0.62, Theme::brightblack);
+            button.setColorAt(1.0, Theme::surface);
+        }
+        p.setBrush(button);
         p.drawEllipse(c, closeRadius, closeRadius);
 
         /* Draw rather than typeset the X: round-capped antialiased strokes
          * stay crisp and centered regardless of font glyph metrics. */
-        QPen mark(closeHovered ? Theme::textStrong : Theme::bg, 2.0,
+        QPen mark(closeHovered ? QColor("#ececec") : Theme::bg, 2.0,
                   Qt::SolidLine, Qt::RoundCap);
         p.setPen(mark);
         const int arm = 3;
@@ -264,8 +315,9 @@ public:
             spec.anchors = WlUtil::AnchorTop | WlUtil::AnchorRight;
             /* The surface begins at the panel edge; its transparent top
              * overhang leaves room for the close circle. */
-            spec.margins = QMargins(0, Theme::panelHeight,
-                                    toastEdgePadding, 0);
+            spec.margins = QMargins(0,
+                                    Theme::panelHeight - toastVerticalOffset,
+                                    toastEdgePadding - toastHorizontalOffset, 0);
             spec.desiredSize = QSize(toastWidth, h);
             spec.exclusiveZone = -1;
             spec.keyboard = WlUtil::Keyboard::None;
@@ -304,7 +356,9 @@ protected:
         const uint next = idAt(e->pos());
         bool close = false;
         if (next) {
-            const QRect card = rectFor(next).adjusted(0, closeOverhang, 0, 0);
+            const QRect card = rectFor(next).adjusted(
+                toastShadowRange, closeOverhang, -toastShadowRange,
+                -toastShadowRange);
             const QPoint center(card.left() + closeRadius + 7, card.top());
             const QPoint delta = e->pos() - center;
             close = delta.x() * delta.x() + delta.y() * delta.y()
@@ -337,7 +391,8 @@ protected:
         if (!n)
             return;
         const QRect r = rectFor(id);
-        const QRect card = r.adjusted(0, closeOverhang, 0, 0);
+        const QRect card = r.adjusted(toastShadowRange, closeOverhang,
+                                      -toastShadowRange, -toastShadowRange);
         const QPoint closeCenter(card.left() + closeRadius + 7, card.top());
         const QPoint delta = e->pos() - closeCenter;
         if (delta.x() * delta.x() + delta.y() * delta.y()
@@ -488,12 +543,28 @@ public:
         layout->setContentsMargins(Theme::popupMargin, Theme::popupMargin,
                                    Theme::popupMargin, Theme::popupMargin);
         layout->setSpacing(Theme::popupSpacing);
-        auto *title = new TextItem(this);
+        auto *header = new QWidget(this);
+        auto *headerLayout = new QHBoxLayout(header);
+        headerLayout->setContentsMargins(0, 0, 0, 0);
+        headerLayout->setSpacing(Theme::rowSpacing);
+        auto *title = new TextItem(header);
         title->setText(QStringLiteral("Notifications"));
         title->setBold(true);
         title->setPixelSize(Theme::titleFontSize);
-        layout->addWidget(title);
+        headerLayout->addWidget(title);
+        headerLayout->addStretch(1);
+        auto *clear = new ShellButton(QStringLiteral("Clear all"), header);
+        headerLayout->addWidget(clear);
+        layout->addWidget(header);
         layout->addWidget(new NotificationHistoryView(this), 1);
+        NotificationService *service = NotificationService::instance();
+        connect(clear, &ShellButton::activated, service,
+                &NotificationService::clearAll);
+        auto syncClear = [service, clear]() {
+            clear->setEnabled(!service->history().isEmpty());
+        };
+        connect(service, &NotificationService::changed, clear, syncClear);
+        syncClear();
         setFixedHeight(500);
     }
 
@@ -670,6 +741,19 @@ void NotificationService::dismiss(uint id, uint reason)
         emit changed();
         return;
     }
+}
+
+void NotificationService::clearAll()
+{
+    if (m_history.isEmpty())
+        return;
+    const QVector<Notification> old = m_history;
+    m_history.clear();
+    m_hovered = 0;
+    for (const Notification &n : old)
+        if (n.visible)
+            emit NotificationClosed(n.id, 2);
+    emit changed();
 }
 
 void NotificationService::activate(uint id)

@@ -54,6 +54,7 @@ public:
     void setDnd(bool enabled);
     void setHovered(uint id);
     void dismiss(uint id, uint reason = 2);
+    void clearAll();
     void activate(uint id);
 
 public slots:

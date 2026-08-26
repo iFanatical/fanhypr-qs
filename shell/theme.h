@@ -88,6 +88,9 @@ inline constexpr int maxTitleWidth       = 420;
 /* Toast card opacity. Hyprland supplies background blur through a layer rule,
  * but the client controls how much of that blurred background shows through. */
 inline constexpr int notificationOpacity = 170; /* 0 transparent .. 255 opaque */
+/* Client-painted toast shadow. Layer surfaces do not receive Hyprland's
+ * decoration.shadow, so mirror its shape with a deliberately softer alpha. */
+inline constexpr int notificationShadowAlpha = 36;
 
 inline QFont font(int pixelSize, bool bold = false)
 {
