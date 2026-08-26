@@ -119,11 +119,26 @@ a Hyprland window only when the DBus sender PID identifies exactly one
 client—ambiguous matches are never guessed.
 
 The former dunst rules are built in: normal notifications use the shell's
-purple/pink accent, critical notifications are red, and special
-colors for notifications whose application name is `volume`, `brightness`,
-`network`, or `screenshot`, plus warning summaries. Volume and brightness are
-still ordinary notifications for now; they are natural candidates for a
-dedicated OSD later.
+purple/pink accent, critical notifications are red, and special colors remain
+for `network`, `screenshot`, and warning summaries. Successful low/normal
+`volume` and `brightness` notifications are instead consumed by a temporary
+bottom-center hardware OSD. It distinguishes speaker volume/mute, microphone
+mute/unmute, laptop or DDC monitor brightness, and keyboard backlight (when a
+sender uses `keyboard-brightness`, `keyboard_backlight`, or a `brightness`
+notification whose summary contains “Keyboard”). Send an `int:value` hint or
+a body containing a percentage. Critical hardware failures remain regular,
+sticky notifications rather than disappearing into the OSD.
+
+The OSD uses the focused output and its own `fanhypr-qs-osd` layer namespace.
+For matching compositor blur, add the same rules used for notifications:
+
+```lua
+hl.layer_rule({
+    match = { namespace = "fanhypr-qs-osd" },
+    blur = true,
+    ignore_alpha = 0.1,
+})
+```
 
 Toast backgrounds are translucent; their alpha is
 `Theme::notificationOpacity` in `shell/theme.h`. The toast box shadow mirrors

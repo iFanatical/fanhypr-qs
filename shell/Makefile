@@ -29,12 +29,13 @@ LDLIBS    = $(shell pkg-config --libs $(PKGS)) $(LSQT_LIBS)
 
 MODULES  = widgets popup wlutil procutil hypripc hyprstate calendar pills \
            panel network bluetooth volume tray traymenu desktopentry \
-           launcher ipc clipboard system battery wallpaper notification
+           launcher ipc clipboard system battery wallpaper notification osd
 # headers containing Q_OBJECT classes
 MOCHDRS  = widgets popup procutil hypripc hyprstate calendar pills panel \
            network bluetooth volume tray traymenu desktopentry launcher ipc \
            clipboard system battery wallpaper
 MOCHDRS += notification
+MOCHDRS += osd
 
 OBJ      = $(MODULES:%=%.o) main.o $(MOCHDRS:%=moc_%.o)
 

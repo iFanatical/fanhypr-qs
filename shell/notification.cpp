@@ -1,5 +1,7 @@
 #include "notification.h"
 
+#include "osd.h"
+
 #include <QApplication>
 #include <QDateTime>
 #include <QDBusConnection>
@@ -580,6 +582,8 @@ NotificationService *NotificationService::instance()
 
 NotificationService::NotificationService(QObject *parent) : QObject(parent)
 {
+    connect(HardwareOsd::instance(), &HardwareOsd::closed, this,
+            &NotificationService::NotificationClosed);
     auto *timer = new QTimer(this);
     timer->setInterval(100);
     connect(timer, &QTimer::timeout, this, &NotificationService::tick);
@@ -635,10 +639,20 @@ uint NotificationService::Notify(const QString &appName, uint replacesId,
                 break;
             }
 
-    Notification n;
-    n.id = replaceAt >= 0 ? replacesId : m_nextId++;
+    const QVariant urgencyValue =
+        unbox(hints.value(QStringLiteral("urgency")));
+    const int urgency = urgencyValue.isValid() ? urgencyValue.toInt() : 1;
+    HardwareOsd *osd = HardwareOsd::instance();
+    const uint candidateId = replaceAt >= 0 ? replacesId : m_nextId++;
     if (m_nextId == 0)
         m_nextId = 1;
+    if (osd->showNotification(
+            candidateId, appName, plainText(summary), plainText(body), hints,
+            urgency))
+        return candidateId;
+
+    Notification n;
+    n.id = replaceAt >= 0 ? replacesId : candidateId;
     n.appName = appName;
     n.appIcon = appIcon;
     n.summary = plainText(summary);
