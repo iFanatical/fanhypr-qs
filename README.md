@@ -23,6 +23,9 @@ make && sudo make install
 | **qtwayland** | the Qt Wayland platform plugin — without it Qt has no Wayland backend |
 | **layer-shell-qt** | `wlr-layer-shell` binding (`kde-plasma/layer-shell-qt`) |
 | libpulse | native volume/mic control (works against pipewire-pulse) |
+| brightnessctl | internal-display and supported keyboard-backlight control |
+| ddcutil | external-monitor brightness control over DDC/CI |
+| pw-play or paplay | optional volume-change feedback sound playback |
 | **wl-clipboard** | clipboard history (`wl-paste --watch` / `wl-copy`) |
 | **awww** (or swww) | wallpaper picker — needs `awww-daemon` running |
 | A Nerd Font | `JetBrainsMono Nerd Font Propo` for the icons/glyphs |
@@ -139,6 +142,34 @@ hl.layer_rule({
     ignore_alpha = 0.1,
 })
 ```
+
+Hardware keys can call the shell directly; the old volume and brightness
+notification scripts are no longer required:
+
+```lua
+local shell = "fanhypr-qs-shell ipc call "
+hl.bind("XF86AudioRaiseVolume",  hl.dsp.exec_cmd(shell .. "audio volume-up"))
+hl.bind("XF86AudioLowerVolume",  hl.dsp.exec_cmd(shell .. "audio volume-down"))
+hl.bind("XF86AudioMute",         hl.dsp.exec_cmd(shell .. "audio toggle-mute"))
+hl.bind("XF86AudioMicMute",      hl.dsp.exec_cmd(shell .. "audio toggle-mic"))
+hl.bind("XF86MonBrightnessUp",   hl.dsp.exec_cmd(shell .. "brightness up"))
+hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd(shell .. "brightness down"))
+hl.bind("SUPER + F1", hl.dsp.exec_cmd(shell .. "brightness monitor-up"))
+hl.bind("SUPER + F2", hl.dsp.exec_cmd(shell .. "brightness monitor-down"))
+```
+
+Volume and brightness use 5% steps. Display brightness follows a
+`... 10, 5, 1` floor when decreasing and `1, 5, 10 ...` when increasing.
+Every detected DDC display is updated together, asynchronously, so a slow I²C
+operation cannot freeze the panel. `brightness keyboard-up` and
+`brightness keyboard-down` are registered only when a keyboard-backlight LED
+is detected.
+
+Volume adjustment retains the freedesktop `audio-volume-change` feedback
+sound. The shell checks `$XDG_CONFIG_HOME/hypr/sounds/audio-volume-change.*`
+first, then the standard freedesktop sound theme in the XDG data directories,
+and plays it through `pw-play` with a `paplay` fallback. This keeps the path
+portable; no sound asset or home directory is compiled into the binary.
 
 Toast backgrounds are translucent; their alpha is
 `Theme::notificationOpacity` in `shell/theme.h`. The toast box shadow mirrors

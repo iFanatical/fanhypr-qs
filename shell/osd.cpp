@@ -81,6 +81,62 @@ HardwareOsd::HardwareOsd(QWidget *parent)
     });
 }
 
+void HardwareOsd::showVolume(int percent, bool muted)
+{
+    m_kind = Kind::Volume;
+    m_label = QStringLiteral("Volume");
+    m_value = qBound(0, percent, 100);
+    m_muted = muted;
+    m_accent = muted ? Theme::danger : Theme::success;
+    m_state = muted ? QStringLiteral("Muted")
+                    : QString::number(m_value) + QLatin1Char('%');
+    present();
+}
+
+void HardwareOsd::showMicrophone(int percent, bool muted)
+{
+    m_kind = Kind::Microphone;
+    m_label = QStringLiteral("Microphone");
+    m_value = qBound(0, percent, 100);
+    m_muted = muted;
+    m_accent = muted ? Theme::danger : Theme::success;
+    m_state = muted ? QStringLiteral("Muted")
+                    : QString::number(m_value) + QLatin1Char('%');
+    present();
+}
+
+void HardwareOsd::showBrightness(int percent, bool external)
+{
+    m_kind = Kind::Brightness;
+    m_label = external ? QStringLiteral("Monitor brightness")
+                       : QStringLiteral("Brightness");
+    m_value = qBound(0, percent, 100);
+    m_muted = false;
+    m_accent = Theme::warning;
+    m_state = QString::number(m_value) + QLatin1Char('%');
+    present();
+}
+
+void HardwareOsd::showKeyboardBacklight(int percent)
+{
+    m_kind = Kind::Keyboard;
+    m_label = QStringLiteral("Keyboard backlight");
+    m_value = qBound(0, percent, 100);
+    m_muted = false;
+    m_accent = Theme::brightmagenta;
+    m_state = QString::number(m_value) + QLatin1Char('%');
+    present();
+}
+
+void HardwareOsd::present()
+{
+    configureFor(focusedScreen());
+    show();
+    raise();
+    update();
+    m_timer->start(osdTimeoutMs);
+}
+
 bool HardwareOsd::showNotification(uint id, const QString &appName,
                                    const QString &summary,
                                    const QString &body,
@@ -144,11 +200,7 @@ bool HardwareOsd::showNotification(uint id, const QString &appName,
     if (m_id && m_id != id)
         emit closed(m_id, 2);
     m_id = id;
-    configureFor(focusedScreen());
-    show();
-    raise();
-    update();
-    m_timer->start(osdTimeoutMs);
+    present();
     return true;
 }
 

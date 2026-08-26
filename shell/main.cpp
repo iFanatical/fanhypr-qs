@@ -3,14 +3,15 @@
  *
  *   fanhypr-qs-shell [--no-duplicate]        run the shell
  *   fanhypr-qs-shell ipc call <target> <fn>  poke a running instance
- *                    (targets: launcher, runner, notifications, vpn,
- *                     wallpaper) */
+ *                    (targets: launcher, runner, notifications, audio,
+ *                     brightness, vpn, wallpaper) */
 #include <QApplication>
 #include <QHash>
 #include <QScreen>
 
 #include "hypripc.h"
 #include "hyprstate.h"
+#include "hardwarecontrols.h"
 #include "ipc.h"
 #include "launcher.h"
 #include "notification.h"
@@ -94,6 +95,7 @@ int main(int argc, char *argv[])
     WallpaperPicker::instance();
 
     auto *ipc = new IpcServer(&app);
+    HardwareControls *hardware = HardwareControls::instance();
     ipc->handle(QStringLiteral("launcher"), QStringLiteral("toggle"),
                 [launcher]() { launcher->toggleMode(QStringLiteral("apps")); });
     ipc->handle(QStringLiteral("launcher"), QStringLiteral("show"),
@@ -108,6 +110,30 @@ int main(int argc, char *argv[])
                 [launcher]() { launcher->hideLauncher(); });
     ipc->handle(QStringLiteral("notifications"), QStringLiteral("toggle-dnd"),
                 []() { NotificationService::instance()->toggleDnd(); });
+    ipc->handle(QStringLiteral("audio"), QStringLiteral("volume-up"),
+                [hardware]() { hardware->volumeUp(); });
+    ipc->handle(QStringLiteral("audio"), QStringLiteral("volume-down"),
+                [hardware]() { hardware->volumeDown(); });
+    ipc->handle(QStringLiteral("audio"), QStringLiteral("toggle-mute"),
+                [hardware]() { hardware->toggleVolumeMute(); });
+    ipc->handle(QStringLiteral("audio"), QStringLiteral("toggle-mic"),
+                [hardware]() { hardware->toggleMicrophoneMute(); });
+    ipc->handle(QStringLiteral("brightness"), QStringLiteral("up"),
+                [hardware]() { hardware->brightnessUp(); });
+    ipc->handle(QStringLiteral("brightness"), QStringLiteral("down"),
+                [hardware]() { hardware->brightnessDown(); });
+    ipc->handle(QStringLiteral("brightness"), QStringLiteral("monitor-up"),
+                [hardware]() { hardware->monitorBrightnessUp(); });
+    ipc->handle(QStringLiteral("brightness"), QStringLiteral("monitor-down"),
+                [hardware]() { hardware->monitorBrightnessDown(); });
+    if (hardware->hasKeyboardBacklight()) {
+        ipc->handle(QStringLiteral("brightness"),
+                    QStringLiteral("keyboard-up"),
+                    [hardware]() { hardware->keyboardBacklightUp(); });
+        ipc->handle(QStringLiteral("brightness"),
+                    QStringLiteral("keyboard-down"),
+                    [hardware]() { hardware->keyboardBacklightDown(); });
+    }
     /* Compatibility with the old keybind while migrating away from dunst. */
     ipc->handle(QStringLiteral("dunst"), QStringLiteral("toggle"),
                 []() { NotificationService::instance()->toggleDnd(); });

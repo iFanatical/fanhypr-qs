@@ -182,6 +182,10 @@ Only what you actually use needs to be installed; a missing helper makes that
 one widget hide itself or show defaults.
 
 - **Volume/mic** — native via libpulse (pipewire-pulse). No script, no tool.
+- **Hardware OSD controls** — `brightnessctl` for an internal display and a
+  supported keyboard backlight; `ddcutil` for external DDC/CI displays.
+  Volume feedback uses `pw-play`, with `paplay` as fallback, when either is
+  installed.
 - **Network** — `nmcli` (NetworkManager) enables the full Wi-Fi manager;
   without it the widget falls back to `iproute2` status + `net-bridge.sh`
   re-apply.

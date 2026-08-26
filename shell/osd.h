@@ -19,6 +19,10 @@ public:
     bool showNotification(uint id, const QString &appName,
                           const QString &summary, const QString &body,
                           const QVariantMap &hints, int urgency);
+    void showVolume(int percent, bool muted);
+    void showMicrophone(int percent, bool muted);
+    void showBrightness(int percent, bool external);
+    void showKeyboardBacklight(int percent);
 
 signals:
     void closed(uint id, uint reason);
@@ -30,6 +34,7 @@ private:
     enum class Kind { Volume, Microphone, Brightness, Keyboard };
 
     explicit HardwareOsd(QWidget *parent = nullptr);
+    void present();
     void configureFor(QScreen *screen);
     void drawIcon(QPainter &p, const QRectF &rect) const;
 
