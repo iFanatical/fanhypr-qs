@@ -301,6 +301,7 @@ per compositor instance so two sessions on one machine don't collide.
 fanhypr-qs-shell ipc call launcher toggle|show|hide
 fanhypr-qs-shell ipc call runner   toggle|show|hide
 fanhypr-qs-shell ipc call emoji    toggle|show|hide
+fanhypr-qs-shell ipc call shell    quit
 fanhypr-qs-shell ipc call notifications toggle-dnd
 fanhypr-qs-shell ipc call vpn      toggle|refresh
 fanhypr-qs-shell ipc call wallpaper toggle|show|hide
@@ -308,6 +309,11 @@ fanhypr-qs-shell ipc call wallpaper toggle|show|hide
 
 `--no-duplicate` makes a second instance exit immediately if one is already
 listening.
+
+`fanhypr-qs-restart` asks the old instance to quit through IPC and waits for
+its event loop to run `aboutToQuit` cleanup before launching the replacement.
+An exact-command, bounded TERM/KILL fallback handles an unavailable IPC server;
+it never uses a broad `killall` match.
 
 ## What the X11 build had that this doesn't
 

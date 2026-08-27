@@ -3,8 +3,8 @@
  *
  *   fanhypr-qs-shell [--no-duplicate]        run the shell
  *   fanhypr-qs-shell ipc call <target> <fn>  poke a running instance
- *                    (targets: launcher, runner, emoji, notifications, audio,
- *                     brightness, vpn, wallpaper) */
+ *                    (targets: shell, launcher, runner, emoji, notifications,
+ *                     audio, brightness, vpn, wallpaper) */
 #include <QApplication>
 #include <QHash>
 #include <QScreen>
@@ -96,6 +96,8 @@ int main(int argc, char *argv[])
 
     auto *ipc = new IpcServer(&app);
     HardwareControls *hardware = HardwareControls::instance();
+    ipc->handle(QStringLiteral("shell"), QStringLiteral("quit"),
+                []() { QCoreApplication::quit(); });
     ipc->handle(QStringLiteral("launcher"), QStringLiteral("toggle"),
                 [launcher]() { launcher->toggleMode(QStringLiteral("apps")); });
     ipc->handle(QStringLiteral("launcher"), QStringLiteral("show"),

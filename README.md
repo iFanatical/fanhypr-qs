@@ -296,8 +296,9 @@ hl.env("FANHYPR_QS_WALLPAPER_TRANSITION", "wipe")
 ```
 
 They are re-read on each use, but the environment of an already-running process
-is fixed, so a change needs the bar restarted (relogin, or `pkill -x
-fanhypr-qs-shel` and start it again).
+is fixed, so a change needs the bar restarted. Prefer `fanhypr-qs-restart`,
+which asks the running shell to exit through IPC and waits for its helper
+cleanup before starting the replacement.
 
 
 | variable | effect |

@@ -4,6 +4,7 @@
 # Local performance investigation notes
 /POWER_REVIEW.md
 /TITLE_EVENT_POWER_REVIEW.md
+/GRACEFUL_RESTART_REVIEW.md
 
 # Build output
 *.o

@@ -3,6 +3,7 @@
  *   fanhypr-qs-shell ipc call launcher toggle|show|hide
  *   fanhypr-qs-shell ipc call runner   toggle|show|hide
  *   fanhypr-qs-shell ipc call notifications toggle-dnd
+ *   fanhypr-qs-shell ipc call shell quit
  * A QLocalServer on $XDG_RUNTIME_DIR keyed by $DISPLAY. */
 #ifndef FANHYPR_QS_IPC_H
 #define FANHYPR_QS_IPC_H
