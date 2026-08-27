@@ -30,13 +30,20 @@ make && sudo make install
 | **awww** (or swww) | wallpaper picker — needs `awww-daemon` running |
 | A Nerd Font | `JetBrainsMono Nerd Font Propo` for the icons/glyphs |
 | Noto Color Emoji | preferred color rendering in the emoji picker |
+| power-profiles-daemon | optional provider for the System power-profile selector |
 
 On Gentoo, `qtwayland` needs the `wayland` USE flag enabled globally:
 
 ```sh
 emerge dev-qt/qtbase dev-qt/qtwayland kde-plasma/layer-shell-qt \
-       gui-apps/wl-clipboard
+       gui-apps/wl-clipboard sys-power/power-profiles-daemon
 ```
+
+On Arch Linux, install the optional profile provider with
+`sudo pacman -S power-profiles-daemon`. The selector talks to the standard
+`net.hadess.PowerProfiles` system D-Bus API, so compatible alternate providers
+work as well. It displays only profiles advertised by the current machine and
+hides completely when no provider is available.
 
 ### Running it
 

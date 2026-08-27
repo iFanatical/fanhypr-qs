@@ -13,6 +13,7 @@
 #include "bluetooth.h"
 #include "clipboard.h"
 #include "pills.h"
+#include "powerprofiles.h"
 #include "procutil.h"
 #include "volume.h"
 
@@ -354,6 +355,10 @@ SystemPopup::SystemPopup(QWidget *anchor) : ContentPopup(anchor, 360)
     lay->addWidget(quickRow);
     connect(this, &ShellPopup::popupVisibleChanged, weather,
             [weather](bool visible) { weather->setPolling(visible); });
+
+    /* Full-width, standard D-Bus power-profile selector. It hides itself on
+     * machines without a net.hadess.PowerProfiles provider. */
+    lay->addWidget(new PowerProfileWidget(body()));
 
     lay->addWidget(new HLine(body()));
 

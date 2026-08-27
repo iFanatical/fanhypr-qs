@@ -209,6 +209,10 @@ one widget hide itself or show defaults.
   without it the widget falls back to `iproute2` status + `net-bridge.sh`
   re-apply.
 - **Bluetooth** — `bluetoothctl` (bluez).
+- **Power profiles** — the standard `net.hadess.PowerProfiles` system D-Bus
+  API. `power-profiles-daemon` is the usual provider; the full-width System
+  selector hides when no provider exists and disables profiles the machine
+  does not advertise.
 - **VPN** — `wg-quick` (WireGuard) + passwordless `sudo` for it. Tunnel `tun1`,
   override with `$FANHYPR_QS_VPN_TUNNEL`. A confirmed toggle shows a temporary
   shield confirmation on the tray output; failures become critical

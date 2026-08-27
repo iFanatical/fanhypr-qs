@@ -1,7 +1,7 @@
 /* The "System" dropdown: CPU/memory/temperature (scripts/fanhypr-qs-sysinfo) as
  * three side-by-side tiles, a row of Weather + larger VPN/Bluetooth/Clipboard
- * pills (moved off the bar), audio (output/mic/device switch), and power
- * buttons (lock/sleep/reboot/power off/log out) backed by
+ * pills (moved off the bar), a standard D-Bus power-profile selector, audio
+ * (output/mic/device switch), and power buttons backed by
  * scripts/fanhypr-qs-power. */
 #ifndef FANHYPR_QS_SYSTEM_H
 #define FANHYPR_QS_SYSTEM_H
