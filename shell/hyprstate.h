@@ -23,6 +23,8 @@
 
 #include <QHash>
 #include <QObject>
+#include <QHash>
+#include <QSet>
 #include <QString>
 #include <QTimer>
 #include <QVector>
@@ -98,6 +100,8 @@ signals:
 
 private:
     void scheduleRefresh();
+    void queueTitleUpdate(const QString &data);
+    void applyTitleUpdates();
     void refresh();
     /* Re-read what only changes when hyprland.conf does. */
     void refreshConfig();
@@ -106,6 +110,11 @@ private:
 
     HyprEventStream m_events;
     QTimer m_coalesce;
+    QTimer m_titleDebounce;
+    QHash<QString, QString> m_pendingTitles; /* client address -> latest title */
+    QHash<QString, QString> m_displayedClientMonitor; /* address -> monitor */
+    QSet<QString> m_knownClients;
+    QString m_activeClient;
     /* monitor name -> assigned workspace ids, from Hyprland's workspace rules;
      * empty when the config has no monitor-pinned rules and we fall back to
      * contiguous per-output blocks. */

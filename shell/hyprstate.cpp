@@ -9,6 +9,51 @@
 
 #include "theme.h"
 
+namespace {
+
+QString normalizedAddress(QString address)
+{
+    address = address.trimmed().toLower();
+    if (!address.isEmpty() && !address.startsWith(QLatin1String("0x")))
+        address.prepend(QStringLiteral("0x"));
+    return address;
+}
+
+bool sameMonitors(const QVector<HyprState::Monitor> &a,
+                  const QVector<HyprState::Monitor> &b)
+{
+    if (a.size() != b.size())
+        return false;
+    for (int i = 0; i < a.size(); ++i) {
+        const auto &x = a[i];
+        const auto &y = b[i];
+        if (x.id != y.id || x.name != y.name
+                || x.description != y.description || x.x != y.x || x.y != y.y
+                || x.w != y.w || x.h != y.h || x.focused != y.focused
+                || x.activeWorkspace != y.activeWorkspace
+                || x.title != y.title || x.workspaces != y.workspaces)
+            return false;
+    }
+    return true;
+}
+
+bool sameWorkspaces(const QHash<int, HyprState::Workspace> &a,
+                    const QHash<int, HyprState::Workspace> &b)
+{
+    if (a.size() != b.size())
+        return false;
+    for (auto it = a.constBegin(); it != a.constEnd(); ++it) {
+        const auto other = b.constFind(it.key());
+        if (other == b.constEnd() || it->id != other->id
+                || it->name != other->name || it->monitor != other->monitor
+                || it->windows != other->windows)
+            return false;
+    }
+    return true;
+}
+
+} /* namespace */
+
 HyprState::HyprState(QObject *parent) : QObject(parent)
 {
     /* Zero-delay single shot: collapses the burst of events one user action
@@ -16,6 +61,14 @@ HyprState::HyprState(QObject *parent) : QObject(parent)
     m_coalesce.setSingleShot(true);
     m_coalesce.setInterval(0);
     connect(&m_coalesce, &QTimer::timeout, this, &HyprState::refresh);
+
+    /* Animated application titles can generate legacy + v2 title/focus
+     * events around ten times per second. Keep their trailing edge separate
+     * from structural compositor changes, which must remain immediate. */
+    m_titleDebounce.setSingleShot(true);
+    m_titleDebounce.setInterval(300);
+    connect(&m_titleDebounce, &QTimer::timeout, this,
+            &HyprState::applyTitleUpdates);
 
     connect(&m_events, &HyprEventStream::hyprEvent, this,
             [this](const QString &name, const QString &data) {
@@ -33,6 +86,27 @@ HyprState::HyprState(QObject *parent) : QObject(parent)
                     }
                     return;
                 }
+                /* Hyprland 0.56 emits both generations. The v2 title payload
+                 * contains the stable window address, so legacy duplicates
+                 * carry no useful information here. */
+                if (name == QLatin1String("windowtitle")
+                        || name == QLatin1String("activewindow"))
+                    return;
+                if (name == QLatin1String("windowtitlev2")) {
+                    queueTitleUpdate(data);
+                    return;
+                }
+                if (name == QLatin1String("activewindowv2")) {
+                    const QString address = normalizedAddress(data);
+                    if (address == m_activeClient)
+                        return; /* duplicate emitted for a title-only change */
+                    m_titleDebounce.stop();
+                    m_pendingTitles.clear();
+                    scheduleRefresh(); /* real focus change: no debounce */
+                    return;
+                }
+                m_titleDebounce.stop();
+                m_pendingTitles.clear();
                 scheduleRefresh();
             });
     connect(&m_events, &HyprEventStream::connected, this, [this]() {
@@ -54,6 +128,49 @@ void HyprState::scheduleRefresh()
 {
     if (!m_coalesce.isActive())
         m_coalesce.start();
+}
+
+void HyprState::queueTitleUpdate(const QString &data)
+{
+    const int comma = data.indexOf(QLatin1Char(','));
+    if (comma <= 0) {
+        /* Unexpected payload: preserve correctness through the existing full
+         * snapshot path, still debounced against an event storm. */
+        m_pendingTitles.insert(QString(), QString());
+    } else {
+        m_pendingTitles.insert(normalizedAddress(data.left(comma)),
+                               data.mid(comma + 1));
+    }
+    m_titleDebounce.start();
+}
+
+void HyprState::applyTitleUpdates()
+{
+    bool fallback = false;
+    bool stateChanged = false;
+    for (auto it = m_pendingTitles.constBegin();
+         it != m_pendingTitles.constEnd(); ++it) {
+        if (it.key().isEmpty() || !m_knownClients.contains(it.key())) {
+            fallback = true;
+            break;
+        }
+        const QString monitorName = m_displayedClientMonitor.value(it.key());
+        if (monitorName.isEmpty())
+            continue; /* known client, but not displayed on a panel */
+        for (Monitor &monitor : monitors) {
+            if (monitor.name != monitorName || monitor.title == it.value())
+                continue;
+            monitor.title = it.value();
+            stateChanged = true;
+            break;
+        }
+    }
+    m_pendingTitles.clear();
+    if (fallback) {
+        refresh();
+    } else if (stateChanged) {
+        emit changed();
+    }
 }
 
 HyprState *HyprState::instance()
@@ -216,6 +333,9 @@ void HyprState::refresh()
         }
         return;
     }
+    const bool oldConnected = connected;
+    const QVector<Monitor> oldMonitors = monitors;
+    const QHash<int, Workspace> oldWorkspaces = workspaces;
     connected = true;
 
     /* --- monitors --- */
@@ -267,26 +387,49 @@ void HyprState::refresh()
      * focusHistoryID on that output's visible workspace is the one it would
      * focus, which is what dwm's per-monitor `sel` meant. */
     QVector<int> bestFocus(monitors.size(), std::numeric_limits<int>::max());
+    QVector<QString> bestAddress(monitors.size());
+    QSet<QString> knownClients;
+    QString activeClient;
+    int activeFocus = std::numeric_limits<int>::max();
     const QJsonArray clients = HyprIpc::requestArray("clients");
     for (const QJsonValue &v : clients) {
         const QJsonObject o = v.toObject();
         if (o.value(QStringLiteral("hidden")).toBool())
             continue;
+        const QString address =
+            normalizedAddress(o.value(QStringLiteral("address")).toString());
+        if (!address.isEmpty())
+            knownClients.insert(address);
         const int ws = o.value(QStringLiteral("workspace"))
                            .toObject()
                            .value(QStringLiteral("id"))
                            .toInt();
         const int monId = o.value(QStringLiteral("monitor")).toInt();
         const int focus = o.value(QStringLiteral("focusHistoryID")).toInt();
+        if (!address.isEmpty() && focus < activeFocus) {
+            activeFocus = focus;
+            activeClient = address;
+        }
         for (int i = 0; i < monitors.size(); i++) {
             if (monitors[i].id != monId || monitors[i].activeWorkspace != ws)
                 continue;
             if (focus < bestFocus[i]) {
                 bestFocus[i] = focus;
+                bestAddress[i] = address;
                 monitors[i].title = o.value(QStringLiteral("title")).toString();
             }
         }
     }
 
-    emit changed();
+    QHash<QString, QString> displayedClientMonitor;
+    for (int i = 0; i < monitors.size(); ++i)
+        if (!bestAddress[i].isEmpty())
+            displayedClientMonitor.insert(bestAddress[i], monitors[i].name);
+    m_knownClients = knownClients;
+    m_displayedClientMonitor = displayedClientMonitor;
+    m_activeClient = activeClient;
+
+    if (oldConnected != connected || !sameMonitors(oldMonitors, monitors)
+            || !sameWorkspaces(oldWorkspaces, workspaces))
+        emit changed();
 }

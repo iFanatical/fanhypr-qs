@@ -31,13 +31,19 @@ Hyprland publishes two unix sockets per instance under
   JSON.
 - **`.socket2.sock`** — a push event stream, one `EVENT>>DATA` line per change.
 
-`HyprState` keeps a persistent reader on the event stream and treats every
-event as "something changed, re-query". Re-queries are coalesced through a
-zero-delay timer, because one user action fans out into several events (moving
-a window emits `movewindow` + `activewindow` + `workspace`) and each refresh
-costs a few socket round trips. `configreloaded` additionally re-reads the
-things that only change when `hyprland.conf` does — the layout and the
-workspace rules.
+`HyprState` keeps a persistent reader on the event stream. Structural events
+are coalesced through a zero-delay timer, because one user action fans out into
+several events and each full refresh costs a few socket round trips.
+`configreloaded` additionally re-reads the things that only change when
+`hyprland.conf` does — the layout and the workspace rules.
+
+Window-title events take a cheaper path. Hyprland emits legacy and v2 title
+and active-window events for every title frame; animated terminal titles can
+therefore produce roughly 40 events per second. Legacy duplicates are ignored,
+repeated `activewindowv2` payloads for the already-active address are dropped,
+and `windowtitlev2` payloads are collected behind a 300 ms trailing debounce.
+Once settled, a known displayed client updates only its monitor title. Unknown
+addresses fall back to a full snapshot, preserving correctness across races.
 
 A refresh reads `j/monitors`, `j/workspaces` and `j/clients`. The per-monitor
 window title comes from `j/clients` rather than `j/activewindow`, because
@@ -45,6 +51,10 @@ window title comes from `j/clients` rather than `j/activewindow`, because
 output* is showing: the client with the lowest `focusHistoryID` on that
 output's visible workspace. That is the same thing dwm's per-monitor `sel`
 meant.
+
+Before a full refresh emits `HyprState::changed()`, its derived monitor,
+workspace, and title state is compared with the previous snapshot. Events that
+produce no bar-visible change do not propagate into panel layout and painting.
 
 If Hyprland restarts underneath the bar, the event stream reconnects on its
 own and a transient empty `j/monitors` reply is ignored rather than blanking
