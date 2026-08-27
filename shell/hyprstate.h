@@ -97,6 +97,9 @@ public:
 
 signals:
     void changed();
+    /* Cheap v2 payload update for one panel; does not imply any workspace,
+     * monitor, tray-host, or layout state changed. */
+    void titleChanged(const QString &monitorName);
 
 private:
     void scheduleRefresh();

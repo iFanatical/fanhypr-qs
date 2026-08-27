@@ -15,12 +15,13 @@ TextItem::TextItem(QWidget *parent) : QWidget(parent)
     setSizePolicy(sp);
 }
 
-void TextItem::setText(const QString &t)
+void TextItem::setText(const QString &t, bool updateLayout)
 {
     if (m_text == t)
         return;
     m_text = t;
-    updateGeometry();
+    if (updateLayout)
+        updateGeometry();
     update();
 }
 

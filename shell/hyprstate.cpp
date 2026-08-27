@@ -137,17 +137,36 @@ void HyprState::queueTitleUpdate(const QString &data)
         /* Unexpected payload: preserve correctness through the existing full
          * snapshot path, still debounced against an event storm. */
         m_pendingTitles.insert(QString(), QString());
-    } else {
-        m_pendingTitles.insert(normalizedAddress(data.left(comma)),
-                               data.mid(comma + 1));
+        m_titleDebounce.start();
+        return;
     }
+
+    const QString address = normalizedAddress(data.left(comma));
+    const QString title = data.mid(comma + 1);
+    if (m_knownClients.contains(address)) {
+        const QString monitorName = m_displayedClientMonitor.value(address);
+        if (monitorName.isEmpty())
+            return; /* known client, but not displayed on a panel */
+        for (Monitor &monitor : monitors) {
+            if (monitor.name != monitorName || monitor.title == title)
+                continue;
+            monitor.title = title;
+            emit titleChanged(monitorName);
+            break;
+        }
+        return;
+    }
+
+    /* A just-created client may emit its title before the structural event's
+     * snapshot has populated the address map. Debounce only that race. */
+    m_pendingTitles.insert(address, title);
     m_titleDebounce.start();
 }
 
 void HyprState::applyTitleUpdates()
 {
     bool fallback = false;
-    bool stateChanged = false;
+    QStringList changedMonitors;
     for (auto it = m_pendingTitles.constBegin();
          it != m_pendingTitles.constEnd(); ++it) {
         if (it.key().isEmpty() || !m_knownClients.contains(it.key())) {
@@ -161,16 +180,16 @@ void HyprState::applyTitleUpdates()
             if (monitor.name != monitorName || monitor.title == it.value())
                 continue;
             monitor.title = it.value();
-            stateChanged = true;
+            changedMonitors.push_back(monitorName);
             break;
         }
     }
     m_pendingTitles.clear();
     if (fallback) {
         refresh();
-    } else if (stateChanged) {
-        emit changed();
-    }
+    } else
+        for (const QString &monitorName : changedMonitors)
+            emit titleChanged(monitorName);
 }
 
 HyprState *HyprState::instance()

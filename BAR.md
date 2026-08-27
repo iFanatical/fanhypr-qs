@@ -41,9 +41,11 @@ Window-title events take a cheaper path. Hyprland emits legacy and v2 title
 and active-window events for every title frame; animated terminal titles can
 therefore produce roughly 40 events per second. Legacy duplicates are ignored,
 repeated `activewindowv2` payloads for the already-active address are dropped,
-and `windowtitlev2` payloads are collected behind a 300 ms trailing debounce.
-Once settled, a known displayed client updates only its monitor title. Unknown
-addresses fall back to a full snapshot, preserving correctness across races.
+and a known `windowtitlev2` payload immediately updates only its monitor's
+title widget through a dedicated signal. This preserves animated titles
+without compositor queries, workspace synchronization, tray work, or a full
+panel relayout. Only an unknown address (the short race before a new client's
+structural event is processed) uses a 300 ms debounce and full-snapshot fallback.
 
 A refresh reads `j/monitors`, `j/workspaces` and `j/clients`. The per-monitor
 window title comes from `j/clients` rather than `j/activewindow`, because

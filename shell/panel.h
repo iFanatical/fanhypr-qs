@@ -59,6 +59,7 @@ private:
     const HyprState::Monitor *mon() const;
     bool hostsTray() const;
     void syncFromState();
+    void syncTitle();
     /* Positions m_leftBox / m_clock / m_rightBox: the clock sits at a fixed
      * horizontal center of the bar (clamped so it never collides with the
      * right-side pills), and m_leftBox gets whatever space is left of it. */

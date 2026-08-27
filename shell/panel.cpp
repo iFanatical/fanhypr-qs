@@ -155,6 +155,11 @@ Panel::Panel(HyprState *state, QScreen *screen)
     connect(m_state, &HyprState::changed, tray, updateTrayHost);
 
     connect(m_state, &HyprState::changed, this, &Panel::syncFromState);
+    connect(m_state, &HyprState::titleChanged, this,
+            [this](const QString &monitorName) {
+                if (m_screen && m_screen->name() == monitorName)
+                    syncTitle();
+            });
 
     /* The compositor owns our width (we are anchored to both side edges), but
      * Qt still needs a size to lay widgets out against, and a mode change has
@@ -264,13 +269,19 @@ void Panel::syncFromState()
     }
     m_wsBox->setVisible(!m_wsButtons.isEmpty());
 
+    syncTitle();
+    relayoutBar();
+}
+
+void Panel::syncTitle()
+{
+    const HyprState::Monitor *m = mon();
     const QString title = m ? m->title : QString();
     m_title->setText(title.isEmpty()
                          ? QString()
                          : QStringLiteral(" [ ") + shortenTitle(title)
-                               + QStringLiteral(" ]"));
-
-    relayoutBar();
+                               + QStringLiteral(" ]"),
+                     false /* elided title already owns fixed layout space */);
 }
 
 void Panel::resizeEvent(QResizeEvent *e)

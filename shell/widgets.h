@@ -15,7 +15,7 @@ class TextItem : public QWidget {
 public:
     explicit TextItem(QWidget *parent = nullptr);
 
-    void setText(const QString &t);
+    void setText(const QString &t, bool updateLayout = true);
     QString text() const { return m_text; }
     void setColor(const QColor &c);
     void setPixelSize(int px);
