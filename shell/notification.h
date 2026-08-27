@@ -19,6 +19,8 @@
 
 #include "widgets.h"
 
+class QTimer;
+
 struct Notification {
     uint id = 0;
     QString appName;
@@ -76,6 +78,7 @@ signals:
 private:
     explicit NotificationService(QObject *parent = nullptr);
     void tick();
+    void scheduleExpiry();
     void applyStyle(Notification &n, int requestedTimeout);
     bool focusCertainSender(const Notification &n);
 
@@ -85,6 +88,7 @@ private:
     bool m_dnd = false;
     bool m_started = false;
     qint64 m_lastTick = 0;
+    QTimer *m_expiryTimer = nullptr;
 };
 
 class NotificationHistoryPopup;

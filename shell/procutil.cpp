@@ -6,6 +6,7 @@
 
 #include <csignal>
 #include <sys/prctl.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 namespace {
@@ -18,6 +19,9 @@ namespace ProcUtil {
 void reapWithParent(QProcess *proc)
 {
     proc->setChildProcessModifier([]() {
+        /* Keep helper descendants out of the shell's process group so cleanup
+         * can safely address the complete helper tree. */
+        setpgid(0, 0);
         /* Kernel-enforced: when the thread that forked us dies -- cleanly,
          * crashed, or SIGKILLed -- the child gets SIGTERM. */
         prctl(PR_SET_PDEATHSIG, SIGTERM);
@@ -40,9 +44,17 @@ void terminateAll()
     for (const QPointer<QProcess> &p : std::as_const(g_helpers)) {
         if (!p || p->state() == QProcess::NotRunning)
             continue;
-        p->terminate();
-        if (!p->waitForFinished(300))
-            p->kill();
+        const qint64 pid = p->processId();
+        if (pid > 1)
+            kill(-pid, SIGTERM);
+        else
+            p->terminate();
+        if (!p->waitForFinished(300)) {
+            if (pid > 1)
+                kill(-pid, SIGKILL);
+            else
+                p->kill();
+        }
     }
     g_helpers.clear();
 }
@@ -87,6 +99,25 @@ void BlockWatchProcess::start()
     if (m_cmd.isEmpty() || m_proc.state() != QProcess::NotRunning)
         return;
     m_proc.start(m_cmd.first(), m_cmd.mid(1));
+}
+
+void BlockWatchProcess::stop()
+{
+    if (m_proc.state() == QProcess::NotRunning)
+        return;
+    const qint64 pid = m_proc.processId();
+    if (pid > 1)
+        kill(-pid, SIGTERM);
+    else
+        m_proc.terminate();
+    if (!m_proc.waitForFinished(300)) {
+        if (pid > 1)
+            kill(-pid, SIGKILL);
+        else
+            m_proc.kill();
+        m_proc.waitForFinished(300);
+    }
+    m_buf.clear();
 }
 
 void BlockWatchProcess::onReadyRead()

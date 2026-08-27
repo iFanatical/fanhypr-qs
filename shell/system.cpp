@@ -101,11 +101,19 @@ public:
         m_proc.setCommand({"fanhypr-qs-weather"});
         connect(&m_proc, &CollectorProcess::finished, this,
                 &WeatherTile::parse);
-        auto *timer = new QTimer(this);
-        connect(timer, &QTimer::timeout, &m_proc,
+        m_timer = new QTimer(this);
+        connect(m_timer, &QTimer::timeout, &m_proc,
                 [this]() { m_proc.start(); });
-        timer->start(5 * 60 * 1000);
-        m_proc.start();
+    }
+
+    void setPolling(bool enabled)
+    {
+        if (enabled) {
+            m_proc.start();
+            m_timer->start(5 * 60 * 1000);
+        } else {
+            m_timer->stop();
+        }
     }
 
 protected:
@@ -156,6 +164,7 @@ private:
     }
 
     CollectorProcess m_proc;
+    QTimer *m_timer;
     QString m_icon, m_temp, m_cond;
 };
 
@@ -311,8 +320,16 @@ SystemPopup::SystemPopup(QWidget *anchor) : ContentPopup(anchor, 360)
     auto *sysTimer = new QTimer(this);
     connect(sysTimer, &QTimer::timeout, sysProc,
             [sysProc]() { sysProc->start(); });
-    sysTimer->start(3000);
-    sysProc->start();
+    connect(this, &ShellPopup::popupVisibleChanged, this,
+            [sysTimer, sysProc](bool visible) {
+                if (visible) {
+                    sysProc->start();
+                    sysTimer->start(3000);
+                } else {
+                    sysTimer->stop();
+                }
+                BluetoothState::instance()->setPolling(visible);
+            });
 
     lay->addWidget(new HLine(body()));
 
@@ -335,6 +352,8 @@ SystemPopup::SystemPopup(QWidget *anchor) : ContentPopup(anchor, 360)
     qr->addWidget(bt, 0, Qt::AlignVCenter);
     qr->addWidget(clip, 0, Qt::AlignVCenter);
     lay->addWidget(quickRow);
+    connect(this, &ShellPopup::popupVisibleChanged, weather,
+            [weather](bool visible) { weather->setPolling(visible); });
 
     lay->addWidget(new HLine(body()));
 

@@ -9,6 +9,7 @@
 #include "widgets.h"
 
 class CalendarPopup;
+class QTimer;
 
 class ClockWidget : public BarPill {
     Q_OBJECT
@@ -17,8 +18,10 @@ public:
 
 private:
     void tick();
+    void scheduleNextMinute();
 
     CalendarPopup *m_popup;
+    QTimer *m_timer;
 };
 
 /* Month grid: 7 columns of width/7; header row of Su..Sa; a 24px circle marks
@@ -50,7 +53,7 @@ public:
     void openPopup() override;
 
 public:
-    /* Called by ClockWidget each second so `today` rolls over at midnight. */
+    /* Called at each minute boundary so `today` rolls over at midnight. */
     void updateToday();
 
 protected:

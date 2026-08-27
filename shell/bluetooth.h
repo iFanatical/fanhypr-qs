@@ -35,6 +35,7 @@ public:
     void scan();
     void connectDevice(const QString &mac);
     void disconnectDevice(const QString &mac);
+    void setPolling(bool enabled);
 
 signals:
     void changed();
@@ -46,6 +47,7 @@ private:
 
     BlockWatchProcess m_watch;
     CollectorProcess m_action;
+    bool m_polling = false;
 };
 
 class BluetoothPopup;

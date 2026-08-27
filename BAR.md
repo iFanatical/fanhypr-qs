@@ -168,13 +168,20 @@ both do this when their screen has changed since the last map.
 
 ## Reaping helpers
 
-Every process started through `procutil` gets `PR_SET_PDEATHSIG`, so the
-kernel kills it when the bar's main thread goes away — including on SIGKILL,
-which no cleanup code could cover. Without it the long-lived watchers outlived
-the bar: a session where the bar had been restarted a dozen times accumulated
-a dozen orphaned `... watch` processes, each still polling. A matching
-`aboutToQuit` sweep terminates them on a clean exit. Programs the *user*
-launches deliberately bypass this — they must outlive the bar.
+Every process started through `procutil` gets a private process group and
+`PR_SET_PDEATHSIG`. A clean shutdown signals the entire group, while a forced
+shell death delivers `SIGTERM` to its helper group leader. Persistent bridge
+scripts trap that signal and relay it to their pipelines, so grandchildren
+such as `nmcli monitor` cannot survive a restart. Without both pieces, a
+session with repeated bar restarts accumulated orphaned `... watch` processes.
+Programs the *user* launches deliberately bypass this machinery — they must
+outlive the bar.
+
+Idle work is kept visibility- and deadline-driven: System stats, weather, and
+Bluetooth poll only while the System popup is open, notifications schedule
+only their nearest expiration, and the clock wakes at the next real minute boundary.
+Network connection changes are event-driven; only Wi-Fi signal/security get a
+lightweight 30-second sample.
 
 ## Widget dependencies
 

@@ -18,10 +18,10 @@ ClockWidget::ClockWidget(QWidget *parent) : BarPill(parent)
     connect(m_popup, &ShellPopup::popupVisibleChanged, this,
             &BarPill::setActive);
 
-    auto *timer = new QTimer(this);
-    timer->setTimerType(Qt::PreciseTimer);
-    connect(timer, &QTimer::timeout, this, &ClockWidget::tick);
-    timer->start(1000);
+    m_timer = new QTimer(this);
+    m_timer->setSingleShot(true);
+    m_timer->setTimerType(Qt::PreciseTimer);
+    connect(m_timer, &QTimer::timeout, this, &ClockWidget::tick);
     tick();
 }
 
@@ -29,9 +29,21 @@ void ClockWidget::tick()
 {
     /* Day/month names in English (C locale); 12-hour clock with AM/PM. */
     setLabel(QDateTime::currentDateTime().toString(
-        QStringLiteral("ddd, MMM dd h:mm:ss AP")));
+        QStringLiteral("ddd, MMM dd h:mm AP")));
     if (m_popup->isVisible())
         m_popup->updateToday();
+    scheduleNextMinute();
+}
+
+void ClockWidget::scheduleNextMinute()
+{
+    /* Recalculate after every tick rather than repeating at 60 seconds. This
+     * cannot accumulate drift and corrects itself after suspend or a clock
+     * adjustment. PreciseTimer is intentional: coarse timers may fire early,
+     * briefly displaying the previous minute past the visual boundary. */
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    const int delay = int(60000 - (now % 60000));
+    m_timer->start(qMax(1, delay));
 }
 
 /* ------------------------------------------------------------ CalendarGrid */

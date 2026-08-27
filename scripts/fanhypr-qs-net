@@ -59,10 +59,10 @@ nm_status() {
 		EOF
 		if [ "$kind" = wifi ]; then
 			ssid=$name
-			signal=$(nmcli -t -f ACTIVE,SIGNAL device wifi list ifname "$dev" 2>/dev/null |
-				awk -F: '$1=="yes"{print $2; exit}')
-			security=$(nmcli -t -f ACTIVE,SECURITY device wifi list ifname "$dev" 2>/dev/null |
-				awk -F: '$1=="yes"{print $2; exit}')
+			active=$(nmcli -t -f ACTIVE,SIGNAL,SECURITY device wifi list ifname "$dev" 2>/dev/null |
+				awk -F: '$1=="yes"{print $2 "\t" $3; exit}')
+			signal=${active%%"$TAB"*}
+			security=${active#*"$TAB"}
 		fi
 	fi
 	printf 'kind=%s\n' "$kind"
@@ -72,6 +72,11 @@ nm_status() {
 	printf 'security=%s\n' "$security"
 	printf 'ip=%s\n' "$ip4"
 	printf 'gateway=%s\n' "${gw:-$(default_gw)}"
+}
+
+nm_signal() {
+	nmcli -t -f ACTIVE,SIGNAL,SECURITY device wifi list 2>/dev/null |
+		awk -F: '$1=="yes"{print "signal=" $2; print "security=" $3; exit}'
 }
 
 nm_wifi_list() {
@@ -131,11 +136,16 @@ ip_status() {
 status() { if [ "$(backend)" = nm ]; then nm_status; else ip_status; fi; }
 
 watch() {
-	status
+	# The shell places this watcher in a dedicated process group. Relay the
+	# parent-death SIGTERM to nmcli/the pipeline so no grandchildren survive a
+	# shell crash or forced restart.
+	trap 'trap - TERM HUP INT; kill -TERM 0; exit 0' TERM HUP INT
+	b=$(backend)
+	if [ "$b" = nm ]; then nm_status; else ip_status; fi
 	printf '\n'
-	if [ "$(backend)" = nm ]; then
+	if [ "$b" = nm ]; then
 		nmcli monitor 2>/dev/null | while IFS= read -r _line; do
-			status
+			nm_status
 			printf '\n'
 		done
 	else
@@ -150,6 +160,7 @@ watch() {
 cmd=${1:-status}
 case "$cmd" in
 status) status ;;
+signal) nm_signal ;;
 watch) watch ;;
 wifi-list) nm_running && nm_wifi_list ;;
 wifi-scan) nm_running && nmcli device wifi rescan >/dev/null 2>&1 || true ;;

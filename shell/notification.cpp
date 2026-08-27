@@ -29,6 +29,7 @@
 #include <QWheelEvent>
 
 #include <algorithm>
+#include <limits>
 
 #include "hypripc.h"
 #include "hyprstate.h"
@@ -584,10 +585,11 @@ NotificationService::NotificationService(QObject *parent) : QObject(parent)
 {
     connect(HardwareOsd::instance(), &HardwareOsd::closed, this,
             &NotificationService::NotificationClosed);
-    auto *timer = new QTimer(this);
-    timer->setInterval(100);
-    connect(timer, &QTimer::timeout, this, &NotificationService::tick);
-    timer->start();
+    m_expiryTimer = new QTimer(this);
+    m_expiryTimer->setSingleShot(true);
+    m_expiryTimer->setTimerType(Qt::PreciseTimer);
+    connect(m_expiryTimer, &QTimer::timeout, this,
+            &NotificationService::tick);
     m_lastTick = QDateTime::currentMSecsSinceEpoch();
 }
 
@@ -631,6 +633,7 @@ uint NotificationService::Notify(const QString &appName, uint replacesId,
                                  const QStringList &actions,
                                  const QVariantMap &hints, int expireTimeout)
 {
+    tick();
     int replaceAt = -1;
     if (replacesId)
         for (int i = 0; i < m_history.size(); i++)
@@ -680,6 +683,7 @@ uint NotificationService::Notify(const QString &appName, uint replacesId,
             emit NotificationClosed(old.id, 2);
     }
     emit changed();
+    scheduleExpiry();
     return n.id;
 }
 
@@ -745,6 +749,7 @@ void NotificationService::CloseNotification(uint id)
 
 void NotificationService::dismiss(uint id, uint reason)
 {
+    tick();
     for (Notification &n : m_history) {
         if (n.id != id || !n.visible)
             continue;
@@ -753,6 +758,7 @@ void NotificationService::dismiss(uint id, uint reason)
             m_hovered = 0;
         emit NotificationClosed(id, reason);
         emit changed();
+        scheduleExpiry();
         return;
     }
 }
@@ -764,6 +770,8 @@ void NotificationService::clearAll()
     const QVector<Notification> old = m_history;
     m_history.clear();
     m_hovered = 0;
+    m_expiryTimer->stop();
+    m_lastTick = QDateTime::currentMSecsSinceEpoch();
     for (const Notification &n : old)
         if (n.visible)
             emit NotificationClosed(n.id, 2);
@@ -814,14 +822,17 @@ bool NotificationService::focusCertainSender(const Notification &n)
 
 void NotificationService::setHovered(uint id)
 {
+    tick();
     m_hovered = id;
+    scheduleExpiry();
 }
 
 void NotificationService::tick()
 {
     const qint64 now = QDateTime::currentMSecsSinceEpoch();
-    const int elapsed = int(qBound<qint64>(qint64(0), now - m_lastTick,
-                                           qint64(1000)));
+    const int elapsed = int(qBound<qint64>(
+        qint64(0), now - m_lastTick,
+        qint64(std::numeric_limits<int>::max())));
     m_lastTick = now;
     QVector<uint> expired;
     for (Notification &n : m_history) {
@@ -832,8 +843,32 @@ void NotificationService::tick()
         if (n.remainingMs <= 0)
             expired.push_back(n.id);
     }
-    for (uint id : expired)
-        dismiss(id, 1);
+    if (!expired.isEmpty()) {
+        for (uint id : expired) {
+            for (Notification &n : m_history) {
+                if (n.id != id || !n.visible)
+                    continue;
+                n.visible = false;
+                emit NotificationClosed(id, 1);
+                break;
+            }
+        }
+        emit changed();
+    }
+    scheduleExpiry();
+}
+
+void NotificationService::scheduleExpiry()
+{
+    int nearest = std::numeric_limits<int>::max();
+    for (const Notification &n : m_history)
+        if (n.visible && n.urgency != 2 && n.id != m_hovered
+                && n.remainingMs > 0)
+            nearest = qMin(nearest, n.remainingMs);
+    if (nearest == std::numeric_limits<int>::max())
+        m_expiryTimer->stop();
+    else
+        m_expiryTimer->start(qMax(1, nearest));
 }
 
 void NotificationService::toggleDnd()
@@ -846,12 +881,14 @@ void NotificationService::setDnd(bool enabled)
     if (m_dnd == enabled)
         return;
     m_dnd = enabled;
+    tick();
     if (m_dnd) {
         for (Notification &n : m_history)
             if (n.visible && n.urgency != 2)
                 n.visible = false;
     }
     emit changed();
+    scheduleExpiry();
 }
 
 NotificationWidget::NotificationWidget(QWidget *parent) : BarPill(parent)

@@ -68,7 +68,7 @@ private:
     CollectorProcess m_wifiList;
     QProcess m_scan;
     QProcess m_action;
-    CollectorProcess m_status;
+    CollectorProcess m_signal;
 };
 
 class NetworkPopup;
@@ -95,8 +95,8 @@ private:
     /* Header buttons + summary: cheap, synced on every state change. */
     void syncControls();
     /* Row list: rebuilt only when its content actually changes (wifi-list
-     * results, backend flip, link changes, password-row expand) so the
-     * 5s status poll can't destroy a password field mid-typing. */
+     * results, backend flip, link changes, password-row expand), so a status
+     * refresh cannot destroy a password field mid-typing. */
     void rebuildList();
 
     QString m_selectedSsid; /* wifi row expanded for password entry */

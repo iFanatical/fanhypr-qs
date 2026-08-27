@@ -47,22 +47,31 @@ NetworkState::NetworkState(QObject *parent)
     connect(&m_action, &QProcess::finished, this,
             [this]() { refreshWifi(); });
 
-    /* The watch is event-driven (nmcli monitor); poll status so the pill
-     * shows the connection at startup and reflects signal changes. */
-    m_status.setCommand({"fanhypr-qs-net", "status"});
-    connect(&m_status, &CollectorProcess::finished, this,
+    /* Connection changes come from nmcli monitor. Signal strength does not,
+     * so sample only those two cheap fields at a low rate instead of running
+     * the complete multi-command status collection every five seconds. */
+    m_signal.setCommand({"fanhypr-qs-net", "signal"});
+    connect(&m_signal, &CollectorProcess::finished, this,
             &NetworkState::parseStatus);
     auto *timer = new QTimer(this);
-    connect(timer, &QTimer::timeout, &m_status,
-            [this]() { m_status.start(); });
-    timer->start(5000);
-    m_status.start(); /* triggeredOnStart */
+    connect(timer, &QTimer::timeout, &m_signal,
+            [this]() { m_signal.start(); });
+    timer->start(30000);
 }
 
 void NetworkState::parseStatus(const QString &block)
 {
+    const QString oldBackend = backend, oldDevice = device,
+                  oldGateway = gateway, oldConnectivity = connectivity,
+                  oldKind = kind, oldConnName = connName, oldSsid = ssid,
+                  oldSecurity = security, oldIp4 = ip4;
+    const bool oldWifiEnabled = wifiEnabled;
+    const int oldWifiSignal = wifiSignal;
+    const QVector<Link> oldLinks = links;
+
     const QStringList lines = block.trimmed().split('\n');
     QVector<Link> lks;
+    bool backendWasReported = false;
     for (const QString &line : lines) {
         if (line.startsWith(QLatin1String("link\t"))) {
             const QStringList p = line.split('\t'); /* link,name,state,type,addr */
@@ -74,9 +83,10 @@ void NetworkState::parseStatus(const QString &block)
         if (i < 0)
             continue;
         const QString k = line.left(i), v = line.mid(i + 1);
-        if (k == QLatin1String("backend"))
+        if (k == QLatin1String("backend")) {
             backend = v;
-        else if (k == QLatin1String("device"))
+            backendWasReported = true;
+        } else if (k == QLatin1String("device"))
             device = v;
         else if (k == QLatin1String("gateway"))
             gateway = v;
@@ -97,13 +107,30 @@ void NetworkState::parseStatus(const QString &block)
         else if (k == QLatin1String("ip"))
             ip4 = v;
     }
-    if (backend == QLatin1String("ip"))
+    if (backendWasReported && backend == QLatin1String("ip"))
         links = lks;
-    emit changed();
+
+    auto sameLinks = [](const QVector<Link> &a, const QVector<Link> &b) {
+        if (a.size() != b.size())
+            return false;
+        for (int i = 0; i < a.size(); ++i)
+            if (a[i].name != b[i].name || a[i].state != b[i].state
+                    || a[i].type != b[i].type || a[i].addr != b[i].addr)
+                return false;
+        return true;
+    };
+    if (oldBackend != backend || oldDevice != device || oldGateway != gateway
+            || oldWifiEnabled != wifiEnabled
+            || oldConnectivity != connectivity || oldKind != kind
+            || oldConnName != connName || oldSsid != ssid
+            || oldWifiSignal != wifiSignal || oldSecurity != security
+            || oldIp4 != ip4 || !sameLinks(oldLinks, links))
+        emit changed();
 }
 
 void NetworkState::parseWifi(const QString &text)
 {
+    const bool wasScanning = scanning;
     QVector<Wifi> nets;
     const QStringList lines = text.trimmed().split('\n');
     for (const QString &l : lines) {
@@ -117,10 +144,18 @@ void NetworkState::parseWifi(const QString &text)
         w.active = p.value(3) == QLatin1String("1");
         nets.push_back(w);
     }
+    bool same = wifiNetworks.size() == nets.size();
+    for (int i = 0; same && i < nets.size(); ++i)
+        same = wifiNetworks[i].ssid == nets[i].ssid
+               && wifiNetworks[i].signal == nets[i].signal
+               && wifiNetworks[i].security == nets[i].security
+               && wifiNetworks[i].active == nets[i].active;
     wifiNetworks = nets;
     scanning = false;
-    emit wifiListChanged();
-    emit changed();
+    if (!same)
+        emit wifiListChanged();
+    if (!same || wasScanning)
+        emit changed();
 }
 
 void NetworkState::action(const QStringList &args)

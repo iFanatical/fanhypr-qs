@@ -2,11 +2,10 @@
  *   CollectorProcess — Process + StdioCollector (run, buffer stdout, emit)
  *   BlockWatchProcess — Process + SplitParser (long-lived, "\n\n" blocks)
  *
- * Both reap: every helper started here gets PR_SET_PDEATHSIG so the kernel
- * kills it when the bar's main thread goes away. Without that the long-lived
- * watchers outlive us -- a bar restarted a dozen times during a session left
- * a dozen orphaned `... watch` processes behind, each still polling. PDEATHSIG
- * covers even SIGKILL, which no amount of cleanup code in here could.
+ * Both reap: every helper gets its own process group plus PR_SET_PDEATHSIG.
+ * Clean shutdown signals the whole group, while PDEATHSIG reaches the group
+ * leader after a crash/SIGKILL. Long-running scripts must trap that SIGTERM
+ * and relay it to their group when they create grandchildren.
  *
  * Programs the user *launches* (desktopentry, the launcher, power actions)
  * deliberately do not go through here: those must outlive the bar. */
@@ -54,6 +53,7 @@ public:
                                QObject *parent = nullptr);
 
     void start();
+    void stop();
 
 signals:
     void block(const QString &data);

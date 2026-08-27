@@ -39,6 +39,7 @@ status)
 	;;
 watch)
 	interval=${2:-4}
+	trap 'trap - TERM HUP INT; kill -TERM 0; exit 0' TERM HUP INT
 	while :; do
 		emit_status
 		printf '\n'

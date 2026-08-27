@@ -23,7 +23,19 @@ BluetoothState::BluetoothState(QObject *parent)
 {
     connect(&m_watch, &BlockWatchProcess::block, this,
             &BluetoothState::parse);
-    m_watch.start();
+    connect(&m_action, &CollectorProcess::finished, this,
+            &BluetoothState::parse);
+}
+
+void BluetoothState::setPolling(bool enabled)
+{
+    if (m_polling == enabled)
+        return;
+    m_polling = enabled;
+    if (enabled)
+        m_watch.start(); /* watcher emits an immediate status block */
+    else
+        m_watch.stop();
 }
 
 void BluetoothState::parse(const QString &block)
