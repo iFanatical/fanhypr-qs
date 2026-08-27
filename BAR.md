@@ -191,7 +191,9 @@ one widget hide itself or show defaults.
   re-apply.
 - **Bluetooth** — `bluetoothctl` (bluez).
 - **VPN** — `wg-quick` (WireGuard) + passwordless `sudo` for it. Tunnel `tun1`,
-  override with `$FANHYPR_QS_VPN_TUNNEL`.
+  override with `$FANHYPR_QS_VPN_TUNNEL`. A confirmed toggle shows a temporary
+  shield confirmation on the tray output; failures become critical
+  notifications.
 - **Battery** — none; reads `/sys/class/power_supply/BAT*` directly. Override
   with `$FANHYPR_QS_BATTERY_PATH`.
 - **CPU/Memory/Temperature** (System dropdown) — `free`; temperature needs a
@@ -281,6 +283,7 @@ per compositor instance so two sessions on one machine don't collide.
 ```
 fanhypr-qs-shell ipc call launcher toggle|show|hide
 fanhypr-qs-shell ipc call runner   toggle|show|hide
+fanhypr-qs-shell ipc call emoji    toggle|show|hide
 fanhypr-qs-shell ipc call notifications toggle-dnd
 fanhypr-qs-shell ipc call vpn      toggle|refresh
 fanhypr-qs-shell ipc call wallpaper toggle|show|hide

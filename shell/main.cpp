@@ -3,7 +3,7 @@
  *
  *   fanhypr-qs-shell [--no-duplicate]        run the shell
  *   fanhypr-qs-shell ipc call <target> <fn>  poke a running instance
- *                    (targets: launcher, runner, notifications, audio,
+ *                    (targets: launcher, runner, emoji, notifications, audio,
  *                     brightness, vpn, wallpaper) */
 #include <QApplication>
 #include <QHash>
@@ -107,6 +107,12 @@ int main(int argc, char *argv[])
     ipc->handle(QStringLiteral("runner"), QStringLiteral("show"),
                 [launcher]() { launcher->openMode(QStringLiteral("run")); });
     ipc->handle(QStringLiteral("runner"), QStringLiteral("hide"),
+                [launcher]() { launcher->hideLauncher(); });
+    ipc->handle(QStringLiteral("emoji"), QStringLiteral("toggle"),
+                [launcher]() { launcher->toggleMode(QStringLiteral("emoji")); });
+    ipc->handle(QStringLiteral("emoji"), QStringLiteral("show"),
+                [launcher]() { launcher->openMode(QStringLiteral("emoji")); });
+    ipc->handle(QStringLiteral("emoji"), QStringLiteral("hide"),
                 [launcher]() { launcher->hideLauncher(); });
     ipc->handle(QStringLiteral("notifications"), QStringLiteral("toggle-dnd"),
                 []() { NotificationService::instance()->toggleDnd(); });

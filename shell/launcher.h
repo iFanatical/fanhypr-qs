@@ -1,5 +1,6 @@
-/* Centered, IPC-triggered launcher with two modes:
- *   "apps" — .desktop entries;  "run" — executables on $PATH.
+/* Centered, IPC-triggered launcher with three modes:
+ *   "apps" — .desktop entries;  "run" — executables on $PATH;
+ *   "emoji" — Unicode name search copied through wl-copy.
  * A fullscreen wlr-layer-shell surface on the Overlay layer with exclusive
  * keyboard focus, so it needs no compositor-side window rule at all (the dwm
  * build had to be taught to recognise it by window title). Clicking outside
@@ -28,8 +29,15 @@ struct LauncherItem {
      * or silently nothing. Carrying the resolved entry sidesteps the race
      * entirely. */
     bool isApp = false;
+    bool isEmoji = false;
     DesktopEntry app;  /* apps mode */
     QString cmd;       /* binary name (run mode) */
+};
+
+struct EmojiEntry {
+    QString value;
+    QString name;
+    QString keywords;
 };
 
 class LauncherWindow;
@@ -39,8 +47,9 @@ class AppLauncher : public QObject {
 public:
     explicit AppLauncher(QObject *parent = nullptr);
 
-    QString mode = QStringLiteral("apps"); /* "apps" | "run" */
+    QString mode = QStringLiteral("apps"); /* "apps" | "run" | "emoji" */
     QStringList binaries;
+    QVector<EmojiEntry> emojis;
     QVector<LauncherItem> entries;
     int selected = 0;
     static constexpr int columns = 2;
@@ -49,6 +58,7 @@ public:
     void refilter();
     void launchSelected();
     void move(int delta);
+    void movePage(int delta);
     void openMode(const QString &m);
     void toggleMode(const QString &m);
     void hideLauncher();
@@ -73,6 +83,7 @@ public:
     explicit LauncherGrid(AppLauncher *l, QWidget *parent = nullptr);
 
     int contentHeight() const;
+    int pageStep() const;
     void ensureVisible();
 
 protected:

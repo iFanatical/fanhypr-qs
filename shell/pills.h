@@ -58,7 +58,7 @@ signals:
 
 private:
     explicit VpnState(QObject *parent = nullptr);
-    void parse(const QString &text);
+    void parse(const QString &text, bool fromToggle);
 
     CollectorProcess m_statusProc;
     CollectorProcess m_toggleProc;

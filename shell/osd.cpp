@@ -47,9 +47,9 @@ int percentage(const QVariantMap &hints, const QString &body)
     return match.hasMatch() ? qBound(0, match.captured(1).toInt(), 100) : -1;
 }
 
-QScreen *focusedScreen()
+QScreen *trayScreen()
 {
-    const QString name = HyprState::instance()->focusedMonitor();
+    const QString name = HyprState::instance()->primaryMonitor();
     for (QScreen *screen : QGuiApplication::screens())
         if (screen->name() == name)
             return screen;
@@ -87,6 +87,7 @@ void HardwareOsd::showVolume(int percent, bool muted)
     m_label = QStringLiteral("Volume");
     m_value = qBound(0, percent, 100);
     m_muted = muted;
+    m_showProgress = true;
     m_accent = muted ? Theme::danger : Theme::success;
     m_state = muted ? QStringLiteral("Muted")
                     : QString::number(m_value) + QLatin1Char('%');
@@ -99,6 +100,7 @@ void HardwareOsd::showMicrophone(int percent, bool muted)
     m_label = QStringLiteral("Microphone");
     m_value = qBound(0, percent, 100);
     m_muted = muted;
+    m_showProgress = true;
     m_accent = muted ? Theme::danger : Theme::success;
     m_state = muted ? QStringLiteral("Muted")
                     : QString::number(m_value) + QLatin1Char('%');
@@ -112,6 +114,7 @@ void HardwareOsd::showBrightness(int percent, bool external)
                        : QStringLiteral("Brightness");
     m_value = qBound(0, percent, 100);
     m_muted = false;
+    m_showProgress = true;
     m_accent = Theme::warning;
     m_state = QString::number(m_value) + QLatin1Char('%');
     present();
@@ -123,14 +126,35 @@ void HardwareOsd::showKeyboardBacklight(int percent)
     m_label = QStringLiteral("Keyboard backlight");
     m_value = qBound(0, percent, 100);
     m_muted = false;
+    m_showProgress = true;
     m_accent = Theme::brightmagenta;
     m_state = QString::number(m_value) + QLatin1Char('%');
     present();
 }
 
+void HardwareOsd::showVpn(bool connected, const QString &interfaceName,
+                          const QString &ipAddress)
+{
+    m_kind = Kind::Vpn;
+    m_label = connected ? QStringLiteral("VPN connected")
+                        : QStringLiteral("VPN disconnected");
+    m_value = connected ? 100 : 0;
+    m_muted = !connected;
+    m_showProgress = false;
+    m_accent = connected ? Theme::accent : Theme::textMuted;
+    if (connected && !ipAddress.isEmpty())
+        m_state = ipAddress;
+    else if (!interfaceName.isEmpty())
+        m_state = interfaceName;
+    else
+        m_state = connected ? QStringLiteral("Protected")
+                            : QStringLiteral("Off");
+    present();
+}
+
 void HardwareOsd::present()
 {
-    configureFor(focusedScreen());
+    configureFor(trayScreen());
     show();
     raise();
     update();
@@ -193,7 +217,10 @@ bool HardwareOsd::showNotification(uint id, const QString &appName,
         m_label = QStringLiteral("Keyboard backlight");
         m_accent = Theme::brightmagenta;
         break;
+    case Kind::Vpn:
+        break;
     }
+    m_showProgress = true;
     m_state = m_muted ? QStringLiteral("Muted")
                       : QString::number(m_value) + QLatin1Char('%');
 
@@ -256,21 +283,25 @@ void HardwareOsd::paintEvent(QPaintEvent *)
     drawIcon(p, QRectF(card.left() + 16, card.top() + 18, 34, 34));
     const qreal left = card.left() + 64;
     const qreal right = card.right() - 16;
+    const qreal textY = m_showProgress ? card.top() + 11
+                                      : card.top() + (card.height() - 20) / 2;
     p.setFont(Theme::font(Theme::smallFontSize, true));
     p.setPen(Theme::textStrong);
-    p.drawText(QRectF(left, card.top() + 11, right - left, 20),
+    p.drawText(QRectF(left, textY, right - left, 20),
                Qt::AlignLeft | Qt::AlignVCenter, m_label);
     p.setFont(Theme::font(Theme::smallFontSize));
     p.setPen(m_accent);
-    p.drawText(QRectF(left, card.top() + 11, right - left, 20),
+    p.drawText(QRectF(left, textY, right - left, 20),
                Qt::AlignRight | Qt::AlignVCenter, m_state);
 
-    const QRectF track(left, card.top() + 43, right - left, 8);
-    Theme::paintRect(p, track, Theme::surface, 4);
-    if (!m_muted && m_value > 0) {
-        QRectF level = track;
-        level.setWidth(track.width() * m_value / 100.0);
-        Theme::paintRect(p, level, m_accent, 4);
+    if (m_showProgress) {
+        const QRectF track(left, card.top() + 43, right - left, 8);
+        Theme::paintRect(p, track, Theme::surface, 4);
+        if (!m_muted && m_value > 0) {
+            QRectF level = track;
+            level.setWidth(track.width() * m_value / 100.0);
+            Theme::paintRect(p, level, m_accent, 4);
+        }
     }
 }
 
@@ -281,7 +312,29 @@ void HardwareOsd::drawIcon(QPainter &p, const QRectF &r) const
     p.setPen(pen);
     p.setBrush(Qt::NoBrush);
     const QPointF c = r.center();
-    if (m_kind == Kind::Brightness) {
+    if (m_kind == Kind::Vpn) {
+        QPainterPath shield;
+        shield.moveTo(c.x(), r.top() + 2);
+        shield.cubicTo(r.right() - 6, r.top() + 6,
+                       r.right() - 5, r.top() + 8,
+                       r.right() - 6, c.y() + 3);
+        shield.cubicTo(r.right() - 8, r.bottom() - 5,
+                       c.x(), r.bottom() - 2,
+                       c.x(), r.bottom() - 2);
+        shield.cubicTo(c.x(), r.bottom() - 2,
+                       r.left() + 8, r.bottom() - 5,
+                       r.left() + 6, c.y() + 3);
+        shield.cubicTo(r.left() + 5, r.top() + 8,
+                       r.left() + 6, r.top() + 6,
+                       c.x(), r.top() + 2);
+        p.drawPath(shield);
+        if (!m_muted) {
+            p.drawLine(QPointF(c.x() - 7, c.y()),
+                       QPointF(c.x() - 2, c.y() + 5));
+            p.drawLine(QPointF(c.x() - 2, c.y() + 5),
+                       QPointF(c.x() + 8, c.y() - 6));
+        }
+    } else if (m_kind == Kind::Brightness) {
         p.drawEllipse(c, 6, 6);
         for (int i = 0; i < 8; ++i) {
             const qreal a = i * M_PI / 4.0;
@@ -321,7 +374,7 @@ void HardwareOsd::drawIcon(QPainter &p, const QRectF &r) const
                           -55 * 16, 110 * 16);
         }
     }
-    if (m_muted) {
+    if (m_muted && m_kind != Kind::Vpn) {
         p.setPen(QPen(Theme::danger, 2.6, Qt::SolidLine, Qt::RoundCap));
         p.drawLine(r.topLeft() + QPointF(4, 4),
                    r.bottomRight() - QPointF(4, 4));

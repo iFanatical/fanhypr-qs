@@ -47,10 +47,13 @@ down)
 toggle)
 	if is_up; then
 		run_wg down "$TUNNEL" >/dev/null 2>&1 || true
+		if is_up; then result=error; else result=ok; fi
 	else
 		run_wg up "$TUNNEL" >/dev/null 2>&1 || true
+		if is_up; then result=ok; else result=error; fi
 	fi
 	print_status
+	printf 'result=%s\n' "$result"
 	;;
 *)
 	printf 'usage: %s [status|toggle|up|down]\n' "$0" >&2

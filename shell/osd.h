@@ -23,6 +23,8 @@ public:
     void showMicrophone(int percent, bool muted);
     void showBrightness(int percent, bool external);
     void showKeyboardBacklight(int percent);
+    void showVpn(bool connected, const QString &interfaceName,
+                 const QString &ipAddress);
 
 signals:
     void closed(uint id, uint reason);
@@ -31,7 +33,7 @@ protected:
     void paintEvent(QPaintEvent *) override;
 
 private:
-    enum class Kind { Volume, Microphone, Brightness, Keyboard };
+    enum class Kind { Volume, Microphone, Brightness, Keyboard, Vpn };
 
     explicit HardwareOsd(QWidget *parent = nullptr);
     void present();
@@ -44,6 +46,7 @@ private:
     Kind m_kind = Kind::Volume;
     int m_value = 0;
     bool m_muted = false;
+    bool m_showProgress = true;
     QString m_label;
     QString m_state;
     QColor m_accent;

@@ -29,6 +29,7 @@ make && sudo make install
 | **wl-clipboard** | clipboard history (`wl-paste --watch` / `wl-copy`) |
 | **awww** (or swww) | wallpaper picker — needs `awww-daemon` running |
 | A Nerd Font | `JetBrainsMono Nerd Font Propo` for the icons/glyphs |
+| Noto Color Emoji | preferred color rendering in the emoji picker |
 
 On Gentoo, `qtwayland` needs the `wayland` USE flag enabled globally:
 
@@ -53,6 +54,7 @@ end)
 
 hl.bind("SUPER + D",         hl.dsp.exec_cmd("fanhypr-qs-shell ipc call launcher toggle"))
 hl.bind("SUPER + SHIFT + D", hl.dsp.exec_cmd("fanhypr-qs-shell ipc call runner toggle"))
+hl.bind("SUPER + CTRL + Space", hl.dsp.exec_cmd("fanhypr-qs-shell ipc call emoji toggle"))
 hl.bind("SUPER + N",         hl.dsp.exec_cmd("fanhypr-qs-shell ipc call notifications toggle-dnd"))
 hl.bind("SUPER + V",         hl.dsp.exec_cmd("fanhypr-qs-shell ipc call vpn toggle"))
 hl.bind("SUPER + W",         hl.dsp.exec_cmd("fanhypr-qs-shell ipc call wallpaper toggle"))
@@ -65,6 +67,7 @@ exec-once = fanhypr-qs-shell --no-duplicate
 
 bind = SUPER, D,       exec, fanhypr-qs-shell ipc call launcher toggle
 bind = SUPER SHIFT, D, exec, fanhypr-qs-shell ipc call runner toggle
+bind = SUPER CTRL, Space, exec, fanhypr-qs-shell ipc call emoji toggle
 bind = SUPER, N,       exec, fanhypr-qs-shell ipc call notifications toggle-dnd
 bind = SUPER, V,       exec, fanhypr-qs-shell ipc call vpn toggle
 bind = SUPER, W,       exec, fanhypr-qs-shell ipc call wallpaper toggle
@@ -101,6 +104,23 @@ whichever output has focus, so it appears where you are working.
 Colours follow the dwm tag convention: **active** purple/pink, **has windows** white,
 **empty** gray.
 
+### Emoji picker
+
+The launcher has a searchable emoji mode:
+
+```sh
+fanhypr-qs-shell ipc call emoji toggle
+```
+
+Searches match Unicode names, groups, and subgroups; multiple words can be
+entered in any matching combination. Arrow keys or `Ctrl-N/P/F/B` move through
+the two-column results, Page Up/Page Down move by one visible page, and Enter
+or a click copies the selected sequence with `wl-copy` before closing the
+picker. The complete Unicode Emoji 17.0
+fully-qualified set is compiled into the binary, so lookup needs no runtime
+data package or network connection. `Noto Color Emoji` is preferred for color
+glyphs, with Qt's normal font fallback when it is unavailable.
+
 ### Notifications
 
 The shell is its own freedesktop notification daemon; do not start dunst or
@@ -132,8 +152,10 @@ notification whose summary contains “Keyboard”). Send an `int:value` hint or
 a body containing a percentage. Critical hardware failures remain regular,
 sticky notifications rather than disappearing into the OSD.
 
-The OSD uses the focused output and its own `fanhypr-qs-osd` layer namespace.
-For matching compositor blur, add the same rules used for notifications:
+The OSD is pinned to the tray output (the output derived by
+`HyprState::primaryMonitor()`) and uses its own `fanhypr-qs-osd` layer
+namespace. For matching compositor blur, add the same rules used for
+notifications:
 
 ```lua
 hl.layer_rule({
@@ -170,6 +192,12 @@ sound. The shell checks `$XDG_CONFIG_HOME/hypr/sounds/audio-volume-change.*`
 first, then the standard freedesktop sound theme in the XDG data directories,
 and plays it through `pw-play` with a `paplay` fallback. This keeps the path
 portable; no sound asset or home directory is compiled into the binary.
+
+VPN toggles use a distinct shield confirmation in the same temporary
+bottom-center surface: connected shows the assigned tunnel address when one
+exists, while disconnected shows the tunnel interface. The confirmation is
+shown only after `fanhypr-qs-vpn` verifies the requested WireGuard state. A
+failed toggle becomes a sticky critical notification instead.
 
 Toast backgrounds are translucent; their alpha is
 `Theme::notificationOpacity` in `shell/theme.h`. The toast box shadow mirrors

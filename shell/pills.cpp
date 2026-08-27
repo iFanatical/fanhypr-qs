@@ -1,6 +1,8 @@
 #include "pills.h"
 
 #include "hyprstate.h"
+#include "notification.h"
+#include "osd.h"
 
 #include <QTimer>
 
@@ -92,9 +94,9 @@ VpnState::VpnState(QObject *parent) : QObject(parent)
     m_statusProc.setCommand({"fanhypr-qs-vpn", "status"});
     m_toggleProc.setCommand({"fanhypr-qs-vpn", "toggle"});
     connect(&m_statusProc, &CollectorProcess::finished, this,
-            &VpnState::parse);
+            [this](const QString &text) { parse(text, false); });
     connect(&m_toggleProc, &CollectorProcess::finished, this,
-            &VpnState::parse);
+            [this](const QString &text) { parse(text, true); });
     refresh(); /* once at startup; no interval polling */
 }
 
@@ -108,8 +110,12 @@ void VpnState::toggle()
     m_toggleProc.start();
 }
 
-void VpnState::parse(const QString &text)
+void VpnState::parse(const QString &text, bool fromToggle)
 {
+    const bool wasUp = up;
+    bool resultKnown = false;
+    bool succeeded = false;
+    QString interfaceName;
     const QStringList lines = text.trimmed().split('\n');
     for (const QString &l : lines) {
         const int i = l.indexOf('=');
@@ -118,10 +124,32 @@ void VpnState::parse(const QString &text)
         const QString k = l.left(i), v = l.mid(i + 1);
         if (k == QLatin1String("state"))
             up = (v == QLatin1String("up"));
+        else if (k == QLatin1String("iface"))
+            interfaceName = v;
         else if (k == QLatin1String("ip"))
             ip = v;
+        else if (k == QLatin1String("result")) {
+            resultKnown = true;
+            succeeded = (v == QLatin1String("ok"));
+        }
     }
     emit changed();
+    if (!fromToggle)
+        return;
+    if ((resultKnown && succeeded) || (!resultKnown && up != wasUp)) {
+        HardwareOsd::instance()->showVpn(up, interfaceName, ip);
+        return;
+    }
+
+    QVariantMap hints;
+    hints.insert(QStringLiteral("urgency"), 2);
+    NotificationService::instance()->Notify(
+        QStringLiteral("vpn"), 0, QString(),
+        QStringLiteral("VPN toggle failed"),
+        QStringLiteral("WireGuard remained %1. Check wg-quick and sudo permissions.")
+            .arg(up ? QStringLiteral("connected")
+                    : QStringLiteral("disconnected")),
+        QStringList(), hints, 0);
 }
 
 /* --------------------------------------------------------------- VpnWidget */

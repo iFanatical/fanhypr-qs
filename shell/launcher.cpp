@@ -13,6 +13,7 @@
 #include <csignal>
 
 #include "hyprstate.h"
+#include "emoji_data.h"
 #include "popup.h"
 #include "wlutil.h"
 
@@ -20,6 +21,16 @@
 
 AppLauncher::AppLauncher(QObject *parent) : QObject(parent)
 {
+    const QStringList emojiLines =
+        QString::fromUtf8(emojiData).split(QLatin1Char('\n'),
+                                           Qt::SkipEmptyParts);
+    emojis.reserve(emojiLines.size());
+    for (const QString &line : emojiLines) {
+        const QStringList fields = line.split(QLatin1Char('\t'));
+        if (fields.size() >= 3)
+            emojis.push_back({fields[0], fields[1], fields[2]});
+    }
+
     /* Enumerate executables on $PATH for run mode. */
     m_binScan.setCommand(
         {"sh", "-c",
@@ -79,7 +90,30 @@ void AppLauncher::refilter()
 
     const QString q = searchText.toLower().trimmed();
     QVector<LauncherItem> out;
-    if (mode == QLatin1String("run")) {
+    if (mode == QLatin1String("emoji")) {
+        const QStringList terms = q.split(QLatin1Char(' '), Qt::SkipEmptyParts);
+        for (const EmojiEntry &emoji : emojis) {
+            const QString haystack =
+                emoji.value + QLatin1Char(' ') + emoji.name.toLower()
+                + QLatin1Char(' ')
+                + emoji.keywords.toLower();
+            bool matches = true;
+            for (const QString &term : terms)
+                if (!haystack.contains(term)) {
+                    matches = false;
+                    break;
+                }
+            if (!matches)
+                continue;
+            LauncherItem it;
+            it.name = emoji.name;
+            it.sub = emoji.keywords;
+            it.icon = emoji.value;
+            it.cmd = emoji.value;
+            it.isEmoji = true;
+            out.push_back(it);
+        }
+    } else if (mode == QLatin1String("run")) {
         for (const QString &b : binaries) {
             if (q.isEmpty() || b.toLower().contains(q)) {
                 LauncherItem it;
@@ -152,6 +186,18 @@ void AppLauncher::launchSelected()
         hideLauncher();
         if (it.isApp) {
             it.app.execute();
+        } else if (it.isEmoji) {
+            auto *proc = new QProcess(this);
+            proc->setProgram(QStringLiteral("wl-copy"));
+            proc->setChildProcessModifier([]() {
+                signal(SIGCHLD, SIG_DFL);
+                signal(SIGINT, SIG_DFL);
+                signal(SIGQUIT, SIG_DFL);
+            });
+            connect(proc, &QProcess::finished, proc, &QObject::deleteLater);
+            proc->start();
+            proc->write(it.cmd.toUtf8());
+            proc->closeWriteChannel();
         } else if (!it.cmd.isEmpty()) {
             auto *proc = new QProcess;
             proc->setProgram(it.cmd);
@@ -173,6 +219,14 @@ void AppLauncher::move(int delta)
     if (entries.isEmpty())
         return;
     selected = (selected + delta + entries.size()) % entries.size();
+    emit selectedChanged();
+}
+
+void AppLauncher::movePage(int delta)
+{
+    if (entries.isEmpty())
+        return;
+    selected = qBound(0, selected + delta, entries.size() - 1);
     emit selectedChanged();
 }
 
@@ -228,6 +282,12 @@ int LauncherGrid::contentHeight() const
     return rows * 48;
 }
 
+int LauncherGrid::pageStep() const
+{
+    /* Advance by whole visible rows and keep the selected column stable. */
+    return qMax(1, height() / 48) * AppLauncher::columns;
+}
+
 void LauncherGrid::clampScroll()
 {
     m_scroll = qMax(0, qMin(m_scroll, contentHeight() - height()));
@@ -277,12 +337,22 @@ void LauncherGrid::paintEvent(QPaintEvent *)
 
         const LauncherItem &it = m_l->entries[i];
         /* icon 24x24, row leftMargin 8 */
-        QIcon icon = QIcon::fromTheme(it.icon);
-        if (icon.isNull())
-            icon = QIcon::fromTheme(QStringLiteral("application-x-executable"));
         const QRect iconRect(inner.x() + Theme::rowSpacing,
                              inner.y() + (inner.height() - 24) / 2, 24, 24);
-        icon.paint(&p, iconRect);
+        if (it.isEmoji) {
+            QFont emojiFont(QStringLiteral("Noto Color Emoji"));
+            emojiFont.setPixelSize(22);
+            p.setFont(emojiFont);
+            p.setPen(Theme::textStrong);
+            p.drawText(iconRect.adjusted(-2, -2, 4, 4),
+                       Qt::AlignCenter, it.icon);
+        } else {
+            QIcon icon = QIcon::fromTheme(it.icon);
+            if (icon.isNull())
+                icon = QIcon::fromTheme(
+                    QStringLiteral("application-x-executable"));
+            icon.paint(&p, iconRect);
+        }
 
         const int textX = iconRect.right() + 1 + Theme::rowSpacing;
         const int textW = inner.right() + 1 - Theme::rowSpacing - textX;
@@ -415,9 +485,12 @@ void LauncherWindow::openOn(QScreen *screen)
     m_search->blockSignals(true);
     m_search->clear();
     m_search->blockSignals(false);
-    m_search->setPlaceholderText(m_l->mode == QLatin1String("run")
-                                     ? QStringLiteral("Run a command…")
-                                     : QStringLiteral("Search applications…"));
+    m_search->setPlaceholderText(
+        m_l->mode == QLatin1String("run")
+            ? QStringLiteral("Run a command…")
+            : (m_l->mode == QLatin1String("emoji")
+                   ? QStringLiteral("Search emoji names…")
+                   : QStringLiteral("Search applications…")));
     /* A fullscreen Overlay surface: above the bar and every popup, and
      * asking for exclusive keyboard focus so the compositor hands us the
      * keyboard the moment it maps. Under X11 this was a WM-managed window
@@ -501,6 +574,14 @@ bool LauncherWindow::handleKey(QKeyEvent *k)
     }
     if (k->key() == Qt::Key_Left || (k->key() == Qt::Key_B && ctrl)) {
         m_l->move(-1);
+        return true;
+    }
+    if (k->key() == Qt::Key_PageDown) {
+        m_l->movePage(m_grid->pageStep());
+        return true;
+    }
+    if (k->key() == Qt::Key_PageUp) {
+        m_l->movePage(-m_grid->pageStep());
         return true;
     }
     return false;
