@@ -1,6 +1,10 @@
 # Editor / tooling
 .claude
 
+# Local performance investigation notes
+/POWER_REVIEW.md
+/TITLE_EVENT_POWER_REVIEW.md
+
 # Build output
 *.o
 /shell/fanhypr-qs-shell
