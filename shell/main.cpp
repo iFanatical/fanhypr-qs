@@ -4,7 +4,7 @@
  *   fanhypr-qs-shell [--no-duplicate]        run the shell
  *   fanhypr-qs-shell ipc call <target> <fn>  poke a running instance
  *                    (targets: shell, launcher, runner, emoji, notifications,
- *                     audio, brightness, vpn, wallpaper) */
+ *                     audio, brightness, media, vpn, wallpaper) */
 #include <QApplication>
 #include <QHash>
 #include <QScreen>
@@ -14,6 +14,7 @@
 #include "hardwarecontrols.h"
 #include "ipc.h"
 #include "launcher.h"
+#include "media.h"
 #include "notification.h"
 #include "panel.h"
 #include "wallpaper.h"
@@ -96,6 +97,7 @@ int main(int argc, char *argv[])
 
     auto *ipc = new IpcServer(&app);
     HardwareControls *hardware = HardwareControls::instance();
+    MediaControls *media = MediaControls::instance();
     ipc->handle(QStringLiteral("shell"), QStringLiteral("quit"),
                 []() { QCoreApplication::quit(); });
     ipc->handle(QStringLiteral("launcher"), QStringLiteral("toggle"),
@@ -126,6 +128,12 @@ int main(int argc, char *argv[])
                 [hardware]() { hardware->toggleVolumeMute(); });
     ipc->handle(QStringLiteral("audio"), QStringLiteral("toggle-mic"),
                 [hardware]() { hardware->toggleMicrophoneMute(); });
+    ipc->handle(QStringLiteral("media"), QStringLiteral("play-pause"),
+                [media]() { media->playPause(); });
+    ipc->handle(QStringLiteral("media"), QStringLiteral("previous"),
+                [media]() { media->previous(); });
+    ipc->handle(QStringLiteral("media"), QStringLiteral("next"),
+                [media]() { media->next(); });
     ipc->handle(QStringLiteral("brightness"), QStringLiteral("up"),
                 [hardware]() { hardware->brightnessUp(); });
     ipc->handle(QStringLiteral("brightness"), QStringLiteral("down"),

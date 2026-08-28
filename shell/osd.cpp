@@ -2,6 +2,7 @@
 
 #include <QApplication>
 #include <QDBusVariant>
+#include <QFontMetrics>
 #include <QPainter>
 #include <QPainterPath>
 #include <QRegularExpression>
@@ -152,6 +153,31 @@ void HardwareOsd::showVpn(bool connected, const QString &interfaceName,
     present();
 }
 
+void HardwareOsd::showMedia(const QString &action, const QString &title,
+                            const QString &artist)
+{
+    m_kind = Kind::Media;
+    m_mediaAction = action;
+    m_label = title.isEmpty() ? QStringLiteral("Unknown track") : title;
+    m_state = artist.isEmpty() ? action : artist;
+    m_muted = false;
+    m_showProgress = false;
+    m_accent = Theme::accent;
+    present();
+}
+
+void HardwareOsd::showMediaUnavailable()
+{
+    m_kind = Kind::Media;
+    m_mediaAction = QStringLiteral("Unavailable");
+    m_label = QStringLiteral("No media player");
+    m_state = QStringLiteral("Nothing is available over MPRIS");
+    m_muted = false;
+    m_showProgress = false;
+    m_accent = Theme::textMuted;
+    present();
+}
+
 void HardwareOsd::present()
 {
     configureFor(trayScreen());
@@ -218,6 +244,7 @@ bool HardwareOsd::showNotification(uint id, const QString &appName,
         m_accent = Theme::brightmagenta;
         break;
     case Kind::Vpn:
+    case Kind::Media:
         break;
     }
     m_showProgress = true;
@@ -284,15 +311,27 @@ void HardwareOsd::paintEvent(QPaintEvent *)
     const qreal left = card.left() + 64;
     const qreal right = card.right() - 16;
     const qreal textY = m_showProgress ? card.top() + 11
-                                      : card.top() + (card.height() - 20) / 2;
+                        : m_kind == Kind::Media ? card.top() + 10
+                                               : card.top() + (card.height() - 20) / 2;
     p.setFont(Theme::font(Theme::smallFontSize, true));
     p.setPen(Theme::textStrong);
+    const QFontMetrics titleMetrics(p.font());
+    const QString visibleLabel = titleMetrics.elidedText(
+        m_label, Qt::ElideRight, qRound(right - left));
     p.drawText(QRectF(left, textY, right - left, 20),
-               Qt::AlignLeft | Qt::AlignVCenter, m_label);
+               Qt::AlignLeft | Qt::AlignVCenter, visibleLabel);
     p.setFont(Theme::font(Theme::smallFontSize));
     p.setPen(m_accent);
-    p.drawText(QRectF(left, textY, right - left, 20),
-               Qt::AlignRight | Qt::AlignVCenter, m_state);
+    if (m_kind == Kind::Media) {
+        const QFontMetrics stateMetrics(p.font());
+        const QString visibleState = stateMetrics.elidedText(
+            m_state, Qt::ElideRight, qRound(right - left));
+        p.drawText(QRectF(left, textY + 24, right - left, 18),
+                   Qt::AlignLeft | Qt::AlignVCenter, visibleState);
+    } else {
+        p.drawText(QRectF(left, textY, right - left, 20),
+                   Qt::AlignRight | Qt::AlignVCenter, m_state);
+    }
 
     if (m_showProgress) {
         const QRectF track(left, card.top() + 43, right - left, 8);
@@ -312,7 +351,39 @@ void HardwareOsd::drawIcon(QPainter &p, const QRectF &r) const
     p.setPen(pen);
     p.setBrush(Qt::NoBrush);
     const QPointF c = r.center();
-    if (m_kind == Kind::Vpn) {
+    if (m_kind == Kind::Media) {
+        if (m_mediaAction == QLatin1String("Previous")) {
+            p.drawLine(QPointF(c.x() - 9, c.y() - 10),
+                       QPointF(c.x() - 9, c.y() + 10));
+            QPainterPath triangle;
+            triangle.moveTo(c.x() + 9, c.y() - 10);
+            triangle.lineTo(c.x() - 6, c.y());
+            triangle.lineTo(c.x() + 9, c.y() + 10);
+            triangle.closeSubpath();
+            p.drawPath(triangle);
+        } else if (m_mediaAction == QLatin1String("Next")) {
+            QPainterPath triangle;
+            triangle.moveTo(c.x() - 9, c.y() - 10);
+            triangle.lineTo(c.x() + 6, c.y());
+            triangle.lineTo(c.x() - 9, c.y() + 10);
+            triangle.closeSubpath();
+            p.drawPath(triangle);
+            p.drawLine(QPointF(c.x() + 9, c.y() - 10),
+                       QPointF(c.x() + 9, c.y() + 10));
+        } else if (m_mediaAction == QLatin1String("Pause")) {
+            p.drawLine(QPointF(c.x() - 6, c.y() - 10),
+                       QPointF(c.x() - 6, c.y() + 10));
+            p.drawLine(QPointF(c.x() + 6, c.y() - 10),
+                       QPointF(c.x() + 6, c.y() + 10));
+        } else {
+            QPainterPath triangle;
+            triangle.moveTo(c.x() - 7, c.y() - 11);
+            triangle.lineTo(c.x() + 10, c.y());
+            triangle.lineTo(c.x() - 7, c.y() + 11);
+            triangle.closeSubpath();
+            p.drawPath(triangle);
+        }
+    } else if (m_kind == Kind::Vpn) {
         QPainterPath shield;
         shield.moveTo(c.x(), r.top() + 2);
         shield.cubicTo(r.right() - 6, r.top() + 6,

@@ -181,11 +181,22 @@ hl.bind("XF86AudioRaiseVolume",  hl.dsp.exec_cmd(shell .. "audio volume-up"))
 hl.bind("XF86AudioLowerVolume",  hl.dsp.exec_cmd(shell .. "audio volume-down"))
 hl.bind("XF86AudioMute",         hl.dsp.exec_cmd(shell .. "audio toggle-mute"))
 hl.bind("XF86AudioMicMute",      hl.dsp.exec_cmd(shell .. "audio toggle-mic"))
+hl.bind("XF86AudioPlay",         hl.dsp.exec_cmd(shell .. "media play-pause"))
+hl.bind("XF86AudioPrev",         hl.dsp.exec_cmd(shell .. "media previous"))
+hl.bind("XF86AudioNext",         hl.dsp.exec_cmd(shell .. "media next"))
 hl.bind("XF86MonBrightnessUp",   hl.dsp.exec_cmd(shell .. "brightness up"))
 hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd(shell .. "brightness down"))
 hl.bind("SUPER + F1", hl.dsp.exec_cmd(shell .. "brightness monitor-up"))
 hl.bind("SUPER + F2", hl.dsp.exec_cmd(shell .. "brightness monitor-down"))
 ```
+
+Media keys use the standard MPRIS session D-Bus API, with no player-specific
+helper or continuous polling. Previous/next target only a player whose MPRIS
+state is actively `Playing`, so an unrelated paused browser tab cannot capture
+the command. Play/pause prefers a playing player but retains a paused fallback
+so playback can be resumed. It shows the current title and artist;
+previous/next wait for the player to publish new metadata, then show only the
+newly selected title and artist. Titles are elided to the OSD width.
 
 Volume and brightness use 5% steps. Display brightness follows a
 `... 10, 5, 1` floor when decreasing and `1, 5, 10 ...` when increasing.

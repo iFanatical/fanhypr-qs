@@ -25,6 +25,9 @@ public:
     void showKeyboardBacklight(int percent);
     void showVpn(bool connected, const QString &interfaceName,
                  const QString &ipAddress);
+    void showMedia(const QString &action, const QString &title,
+                   const QString &artist);
+    void showMediaUnavailable();
 
 signals:
     void closed(uint id, uint reason);
@@ -33,7 +36,7 @@ protected:
     void paintEvent(QPaintEvent *) override;
 
 private:
-    enum class Kind { Volume, Microphone, Brightness, Keyboard, Vpn };
+    enum class Kind { Volume, Microphone, Brightness, Keyboard, Vpn, Media };
 
     explicit HardwareOsd(QWidget *parent = nullptr);
     void present();
@@ -49,6 +52,7 @@ private:
     bool m_showProgress = true;
     QString m_label;
     QString m_state;
+    QString m_mediaAction;
     QColor m_accent;
     bool m_configured = false;
 };

@@ -205,6 +205,10 @@ one widget hide itself or show defaults.
   supported keyboard backlight; `ddcutil` for external DDC/CI displays.
   Volume feedback uses `pw-play`, with `paplay` as fallback, when either is
   installed.
+- **Media OSD controls** — no helper dependency. Play/pause, previous, and
+  next use the standard MPRIS session D-Bus API and show track metadata in the
+  tray-output OSD. Previous/next operate only on an actively playing player;
+  play/pause may fall back to a paused player so it can resume playback.
 - **Network** — `nmcli` (NetworkManager) enables the full Wi-Fi manager;
   without it the widget falls back to `iproute2` status + `net-bridge.sh`
   re-apply.
