@@ -271,10 +271,31 @@ void MediaControls::finishTrackChange(const QString &service)
     if (m_pending.service != service)
         return;
     const Player &player = m_players[service];
-    if (player.title.isEmpty() || player.title == m_pending.oldTitle)
+    if (player.status != QLatin1String("Playing") || player.title.isEmpty()
+        || player.title == m_pending.oldTitle)
         return;
-    showCurrent(m_pending.action, player);
-    m_pending.service.clear();
+
+    /* Chromium exposes all of its tabs through one MPRIS service. While a
+     * browser audio element swaps sources, that service can briefly publish
+     * metadata from an unrelated paused tab before returning to the playing
+     * tab. Do not accept the first different title: require the complete
+     * title/artist pair to remain stable in Playing state. */
+    const QString candidateTitle = player.title;
+    const QString candidateArtist = player.artist;
+    const quint64 serial = m_pending.serial;
+    QTimer::singleShot(400, this,
+                       [this, service, serial, candidateTitle,
+                        candidateArtist]() {
+        if (m_pending.service != service || m_pending.serial != serial)
+            return;
+        const Player current = m_players.value(service);
+        if (current.status != QLatin1String("Playing")
+            || current.title != candidateTitle
+            || current.artist != candidateArtist)
+            return;
+        showCurrent(m_pending.action, current);
+        m_pending.service.clear();
+    });
 }
 
 void MediaControls::pollTrackChange(const QString &service, quint64 serial,
@@ -288,7 +309,11 @@ void MediaControls::pollTrackChange(const QString &service, quint64 serial,
     if (attempt >= int(sizeof(delays) / sizeof(delays[0]))) {
         QTimer::singleShot(150, this, [this, service, serial]() {
             if (m_pending.service == service && m_pending.serial == serial) {
-                showCurrent(m_pending.action, m_players.value(service));
+                const Player current = m_players.value(service);
+                if (current.status == QLatin1String("Playing"))
+                    showCurrent(m_pending.action, current);
+                else
+                    HardwareOsd::instance()->showMediaUnavailable();
                 m_pending.service.clear();
             }
         });

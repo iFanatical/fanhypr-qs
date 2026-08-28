@@ -196,7 +196,9 @@ state is actively `Playing`, so an unrelated paused browser tab cannot capture
 the command. Play/pause prefers a playing player but retains a paused fallback
 so playback can be resumed. It shows the current title and artist;
 previous/next wait for the player to publish new metadata, then show only the
-newly selected title and artist. Titles are elided to the OSD width.
+newly selected title and artist. Navigation metadata is briefly stabilized
+before display because Chromium can expose a paused tab while its playing tab
+changes sources. Titles are elided to the OSD width.
 
 Volume and brightness use 5% steps. Display brightness follows a
 `... 10, 5, 1` floor when decreasing and `1, 5, 10 ...` when increasing.
