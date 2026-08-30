@@ -84,6 +84,10 @@ SniItem::SniItem(const QString &service_, const QString &path_,
     refetch();
 }
 
+SniItem::SniItem(QObject *parent) : QObject(parent)
+{
+}
+
 void SniItem::refetch()
 {
     QDBusMessage msg = QDBusMessage::createMethodCall(
@@ -186,6 +190,10 @@ void SniItem::secondaryActivate(int x, int y)
         QStringLiteral("SecondaryActivate"));
     msg << x << y;
     QDBusConnection::sessionBus().asyncCall(msg);
+}
+
+void SniItem::contextActivate(int, int)
+{
 }
 
 /* ------------------------------------------------------------ TrayService */
@@ -353,6 +361,23 @@ void TrayService::removeItemsForService(const QString &service)
         emit itemsChanged();
 }
 
+void TrayService::addInternalItem(SniItem *item)
+{
+    if (!item || items.contains(item))
+        return;
+    item->setParent(this);
+    items.push_back(item);
+    emit itemsChanged();
+}
+
+void TrayService::removeInternalItem(SniItem *item)
+{
+    if (!items.removeOne(item))
+        return;
+    item->deleteLater();
+    emit itemsChanged();
+}
+
 /* --------------------------------------------------------- TrayIconWidget */
 
 TrayIconWidget::TrayIconWidget(SniItem *item, QWidget *parent)
@@ -443,7 +468,10 @@ void TrayIconWidget::mouseReleaseEvent(QMouseEvent *e)
         } else if (b == Qt::MiddleButton) {
             m_item->secondaryActivate(g.x(), g.y());
         } else if (b == Qt::RightButton) {
-            openMenu();
+            if (m_item->hasMenu())
+                openMenu();
+            else
+                m_item->contextActivate(g.x(), g.y());
         }
     }
     m_pressed = Qt::NoButton;

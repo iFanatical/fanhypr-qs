@@ -2,14 +2,24 @@
 #
 # Needs qtbase (widgets, gui, dbus, network), qtwayland (the platform plugin —
 # without it Qt has no Wayland backend at all), layer-shell-qt (the
-# wlr-layer-shell binding), and libpulse. No X11, no xcb: everything the dwm
-# build used them for is a layer-shell request now.
+# wlr-layer-shell binding), and libpulse. X11/XComposite/XDamage are optional:
+# when present they enable legacy Wine/XWayland XEmbed tray intake only; the
+# panel and every native surface remain Wayland/layer-shell.
 #
 # Gentoo:  emerge dev-qt/qtbase dev-qt/qtwayland kde-plasma/layer-shell-qt \
 #                 media-sound/pulseaudio-daemon
 
 QTMODS   = Qt6Widgets Qt6Gui Qt6Core Qt6DBus Qt6Network
 PKGS     = $(QTMODS) libpulse
+
+# Optional legacy XEmbed tray intake for Wine/XWayland applications. The bar
+# remains SNI-only when these development packages are absent.
+XEMBED_PKGS = x11 xcomposite xdamage xfixes
+HAVE_XEMBED = $(shell pkg-config --exists $(XEMBED_PKGS) && echo 1)
+ifeq ($(HAVE_XEMBED),1)
+PKGS     += $(XEMBED_PKGS)
+CXXFLAGS += -DFANHYPR_QS_HAVE_XEMBED
+endif
 
 # layer-shell-qt ships CMake config files, not a .pc, so it is found by hand.
 # Distros disagree about where the headers land; take the first that exists,
@@ -40,6 +50,10 @@ MOCHDRS += osd
 MOCHDRS += hardwarecontrols
 MOCHDRS += powerprofiles
 MOCHDRS += media
+ifeq ($(HAVE_XEMBED),1)
+MODULES += xembedtray
+MOCHDRS += xembedtray
+endif
 
 OBJ      = $(MODULES:%=%.o) main.o $(MOCHDRS:%=moc_%.o)
 

@@ -20,6 +20,9 @@
 #include "wallpaper.h"
 #include "pills.h"
 #include "wlutil.h"
+#ifdef FANHYPR_QS_HAVE_XEMBED
+#include "xembedtray.h"
+#endif
 
 int main(int argc, char *argv[])
 {
@@ -79,6 +82,10 @@ int main(int argc, char *argv[])
     const QList<QScreen *> screens = app.screens();
     for (QScreen *s : screens)
         addPanel(s);
+#ifdef FANHYPR_QS_HAVE_XEMBED
+    /* Optional XWayland bridge: inert when DISPLAY is unset or unreachable. */
+    XEmbedTray::instance();
+#endif
     QObject::connect(&app, &QGuiApplication::screenAdded, &app, addPanel);
     QObject::connect(&app, &QGuiApplication::screenRemoved, &app,
                      [&panels](QScreen *s) {

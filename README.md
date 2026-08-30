@@ -31,12 +31,26 @@ make && sudo make install
 | A Nerd Font | `JetBrainsMono Nerd Font Propo` for the icons/glyphs |
 | Noto Color Emoji | preferred color rendering in the emoji picker |
 | power-profiles-daemon | optional provider for the System power-profile selector |
+| X11, XComposite, XDamage, XFixes development files | optional legacy Wine/XWayland tray support |
 
 On Gentoo, `qtwayland` needs the `wayland` USE flag enabled globally:
 
 ```sh
 emerge dev-qt/qtbase dev-qt/qtwayland kde-plasma/layer-shell-qt \
        gui-apps/wl-clipboard sys-power/power-profiles-daemon
+```
+
+To compile optional legacy XEmbed tray support on Gentoo, also install:
+
+```sh
+emerge x11-libs/libX11 x11-libs/libXcomposite x11-libs/libXdamage \
+       x11-libs/libXfixes
+```
+
+On Arch Linux, the corresponding optional build dependencies are:
+
+```sh
+sudo pacman -S libx11 libxcomposite libxdamage libxfixes
 ```
 
 On Arch Linux, install the optional profile provider with
@@ -107,6 +121,16 @@ The **tray** sits on whichever output owns the lowest-numbered workspace, so it
 stays put. Hyprland has no primary-monitor setting, so this is derived rather
 than configured — nothing to keep in sync. The **launcher** instead opens on
 whichever output has focus, so it appears where you are working.
+
+The normal tray is native StatusNotifierItem/D-Bus. When the optional X11,
+XComposite, XDamage, and XFixes development packages were present at build
+time, the same binary also provides an XEmbed tray manager whenever a reachable
+XWayland `$DISPLAY` exists. Legacy Wine icons are captured offscreen and added
+to the normal tray; left, middle, and right clicks are relayed to the X11 icon.
+Without those libraries or without XWayland, this compatibility path is simply
+not compiled or remains inactive. No Plasma component or helper daemon is
+used. A Wine application that already created its floating fallback before the
+shell started may need to be restarted once so it notices the new tray owner.
 
 Colours follow the dwm tag convention: **active** purple/pink, **has windows** white,
 **empty** gray.

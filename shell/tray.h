@@ -21,6 +21,8 @@ class SniItem : public QObject {
 public:
     SniItem(const QString &service, const QString &path,
             QObject *parent = nullptr);
+    explicit SniItem(QObject *parent = nullptr);
+    virtual ~SniItem() = default;
 
     QString service;
     QString path;
@@ -37,8 +39,9 @@ public:
         return !menuPath.isEmpty() && menuPath != QLatin1String("/");
     }
 
-    void activate(int x, int y);
-    void secondaryActivate(int x, int y);
+    virtual void activate(int x, int y);
+    virtual void secondaryActivate(int x, int y);
+    virtual void contextActivate(int x, int y);
 
 signals:
     void changed();
@@ -68,6 +71,10 @@ public:
     QStringList registeredItems() const;
     bool hostRegistered() const { return true; }
     int protocolVersion() const { return 0; }
+    /* Internal compatibility items share the same widgets without being
+     * exported as fake D-Bus services. */
+    void addInternalItem(SniItem *item);
+    void removeInternalItem(SniItem *item);
 
 public slots:
     void RegisterStatusNotifierItem(const QString &serviceOrPath);

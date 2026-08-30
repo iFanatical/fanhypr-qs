@@ -209,6 +209,11 @@ one widget hide itself or show defaults.
   next use the standard MPRIS session D-Bus API and show track metadata in the
   tray-output OSD. Previous/next operate only on an actively playing player;
   play/pause may fall back to a paused player so it can resume playback.
+- **Legacy Wine tray icons** — optional `libX11`, `libXcomposite`,
+  `libXdamage`, and `libXfixes` build dependencies. When compiled in, the
+  shell claims XWayland's XEmbed tray selection, captures docked icons
+  offscreen, and places them in the existing SNI tray. It stays inactive when
+  `$DISPLAY` is absent or unreachable; no Plasma proxy is required.
 - **Network** — `nmcli` (NetworkManager) enables the full Wi-Fi manager;
   without it the widget falls back to `iproute2` status + `net-bridge.sh`
   re-apply.
