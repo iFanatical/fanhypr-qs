@@ -138,8 +138,9 @@ Panel::Panel(HyprState *state, QScreen *screen)
     rightRow->addWidget(new SystemWidget(m_rightBox), 0, Qt::AlignVCenter);
 
     /* Either box's natural width can change after construction (tray icons
-     * add/remove, a pill's label grows) which resizes it via its own layout
-     * without going through Panel::resizeEvent — catch that here too. */
+     * add/remove, a pill's label grows). Because these boxes are positioned
+     * manually, a child first produces LayoutRequest rather than resizing its
+     * parent; catch both that request and the resulting resize here. */
     m_rightBox->installEventFilter(this);
     m_clock->installEventFilter(this);
 
@@ -292,8 +293,11 @@ void Panel::resizeEvent(QResizeEvent *e)
 
 bool Panel::eventFilter(QObject *watched, QEvent *event)
 {
-    if (event->type() == QEvent::Resize
-            && (watched == m_rightBox || watched == m_clock))
+    const bool boxResized = event->type() == QEvent::Resize
+                            && (watched == m_rightBox || watched == m_clock);
+    const bool rightHintChanged = watched == m_rightBox
+                                  && event->type() == QEvent::LayoutRequest;
+    if (boxResized || rightHintChanged)
         relayoutBar();
     return QWidget::eventFilter(watched, event);
 }
