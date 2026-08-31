@@ -222,10 +222,11 @@ one widget hide itself or show defaults.
   API. `power-profiles-daemon` is the usual provider; the full-width System
   selector hides when no provider exists and disables profiles the machine
   does not advertise.
-- **VPN** — `wg-quick` (WireGuard) + passwordless `sudo` for it. Tunnel `tun1`,
-  override with `$FANHYPR_QS_VPN_TUNNEL`. A confirmed toggle shows a temporary
-  shield confirmation on the tray output; failures become critical
-  notifications.
+- **VPN** — `wg-quick` (WireGuard) + passwordless `sudo` for it. The System
+  menu pill opens an exclusive `tun1`/`tun2` selector: choosing the active
+  tunnel disconnects it, while choosing the other switches tunnels. A
+  confirmed change shows a temporary shield confirmation on the tray output;
+  failures become critical notifications.
 - **Battery** — none; reads `/sys/class/power_supply/BAT*` directly. Override
   with `$FANHYPR_QS_BATTERY_PATH`.
 - **CPU/Memory/Temperature** (System dropdown) — `free`; temperature needs a
@@ -318,7 +319,7 @@ fanhypr-qs-shell ipc call runner   toggle|show|hide
 fanhypr-qs-shell ipc call emoji    toggle|show|hide
 fanhypr-qs-shell ipc call shell    quit
 fanhypr-qs-shell ipc call notifications toggle-dnd
-fanhypr-qs-shell ipc call vpn      toggle|refresh
+fanhypr-qs-shell ipc call vpn      toggle|tun1|tun2|refresh
 fanhypr-qs-shell ipc call wallpaper toggle|show|hide
 ```
 

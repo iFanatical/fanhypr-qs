@@ -241,7 +241,11 @@ VPN toggles use a distinct shield confirmation in the same temporary
 bottom-center surface: connected shows the assigned tunnel address when one
 exists, while disconnected shows the tunnel interface. The confirmation is
 shown only after `fanhypr-qs-vpn` verifies the requested WireGuard state. A
-failed toggle becomes a sticky critical notification instead.
+failed toggle becomes a sticky critical notification instead. Clicking the
+System menu's VPN pill opens an exclusive `tun1`/`tun2` selector. Selecting
+the connected tunnel disconnects it; selecting the other tunnel switches to
+it. The equivalent IPC calls are `vpn tun1` and `vpn tun2`; `vpn toggle`
+retains its existing behavior for keybind compatibility.
 
 Toast backgrounds are translucent; their alpha is
 `Theme::notificationOpacity` in `shell/theme.h`. The toast box shadow mirrors
@@ -347,7 +351,6 @@ cleanup before starting the replacement.
 
 | variable | effect |
 |---|---|
-| `FANHYPR_QS_VPN_TUNNEL` | WireGuard tunnel name (default `tun1`) |
 | `FANHYPR_QS_BATTERY_PATH` | battery `power_supply` dir (multi-battery machines) |
 | `FANHYPR_QS_WEATHER_UNIT` | `C` for Celsius, default Fahrenheit |
 | `FANHYPR_QS_NET_BRIDGE` | path to `net-bridge.sh` for the non-NetworkManager backend |

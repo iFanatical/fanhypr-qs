@@ -2,6 +2,7 @@
 #ifndef FANHYPR_QS_PILLS_H
 #define FANHYPR_QS_PILLS_H
 
+#include "popup.h"
 #include "procutil.h"
 #include "widgets.h"
 
@@ -38,20 +39,25 @@ private:
     void sync();
 };
 
-/* WireGuard tun1 state (fanhypr-qs-vpn). No polling: the status is read once at
- * startup and refreshed whenever it is toggled — via the pill or
- * `fanhypr-qs-shell ipc call vpn toggle`. Singleton so every panel's pill and
- * the IPC handler share one state. */
+/* WireGuard tun1/tun2 state (fanhypr-qs-vpn). No polling: status is read once
+ * at startup and refreshed after a selection. Selecting an active tunnel
+ * disconnects it; selecting the other switches tunnels. */
 class VpnState : public QObject {
     Q_OBJECT
 public:
     static VpnState *instance();
 
-    bool up = false;
-    QString ip;
+    bool tun1Up = false;
+    bool tun2Up = false;
+    QString tun1Ip;
+    QString tun2Ip;
 
     void refresh();
     void toggle();
+    void select(const QString &tunnel);
+    bool isUp(const QString &tunnel) const;
+    QString address(const QString &tunnel) const;
+    QString activeTunnel() const;
 
 signals:
     void changed();
@@ -64,14 +70,37 @@ private:
     CollectorProcess m_toggleProc;
 };
 
-/* WireGuard indicator/toggle pill. Click = toggle, right-click = refresh. */
+class VpnPopup;
+
+/* WireGuard indicator/selector pill. Click = tunnel menu, right-click =
+ * refresh. */
 class VpnWidget : public BarPill {
     Q_OBJECT
 public:
     explicit VpnWidget(QWidget *parent = nullptr);
 
+    QSize sizeHint() const override;
+    QSize minimumSizeHint() const override { return QSize(0, sizeHint().height()); }
+
+protected:
+    void paintEvent(QPaintEvent *) override;
+
 private:
     void sync();
+
+    VpnPopup *m_popup;
+};
+
+class VpnPopup : public ContentPopup {
+    Q_OBJECT
+public:
+    explicit VpnPopup(QWidget *anchor);
+
+private:
+    void sync();
+
+    ShellButton *m_tun1;
+    ShellButton *m_tun2;
 };
 
 #endif

@@ -4,7 +4,9 @@
 #include "notification.h"
 #include "osd.h"
 
+#include <QPainter>
 #include <QTimer>
+#include <QVBoxLayout>
 
 static QString glyph(char32_t c)
 {
@@ -92,7 +94,6 @@ VpnState *VpnState::instance()
 VpnState::VpnState(QObject *parent) : QObject(parent)
 {
     m_statusProc.setCommand({"fanhypr-qs-vpn", "status"});
-    m_toggleProc.setCommand({"fanhypr-qs-vpn", "toggle"});
     connect(&m_statusProc, &CollectorProcess::finished, this,
             [this](const QString &text) { parse(text, false); });
     connect(&m_toggleProc, &CollectorProcess::finished, this,
@@ -107,12 +108,40 @@ void VpnState::refresh()
 
 void VpnState::toggle()
 {
-    m_toggleProc.start();
+    select(activeTunnel().isEmpty() ? QStringLiteral("tun1")
+                                    : activeTunnel());
+}
+
+void VpnState::select(const QString &tunnel)
+{
+    if (tunnel != QLatin1String("tun1") && tunnel != QLatin1String("tun2"))
+        return;
+    m_toggleProc.start({QStringLiteral("fanhypr-qs-vpn"),
+                        QStringLiteral("select"), tunnel});
+}
+
+bool VpnState::isUp(const QString &tunnel) const
+{
+    return tunnel == QLatin1String("tun1") ? tun1Up : tun2Up;
+}
+
+QString VpnState::address(const QString &tunnel) const
+{
+    return tunnel == QLatin1String("tun1") ? tun1Ip : tun2Ip;
+}
+
+QString VpnState::activeTunnel() const
+{
+    if (tun1Up)
+        return QStringLiteral("tun1");
+    if (tun2Up)
+        return QStringLiteral("tun2");
+    return {};
 }
 
 void VpnState::parse(const QString &text, bool fromToggle)
 {
-    const bool wasUp = up;
+    const bool wasUp = tun1Up || tun2Up;
     bool resultKnown = false;
     bool succeeded = false;
     QString interfaceName;
@@ -122,12 +151,16 @@ void VpnState::parse(const QString &text, bool fromToggle)
         if (i < 0)
             continue;
         const QString k = l.left(i), v = l.mid(i + 1);
-        if (k == QLatin1String("state"))
-            up = (v == QLatin1String("up"));
+        if (k == QLatin1String("tun1"))
+            tun1Up = (v == QLatin1String("up"));
+        else if (k == QLatin1String("tun2"))
+            tun2Up = (v == QLatin1String("up"));
+        else if (k == QLatin1String("tun1_ip"))
+            tun1Ip = v;
+        else if (k == QLatin1String("tun2_ip"))
+            tun2Ip = v;
         else if (k == QLatin1String("iface"))
             interfaceName = v;
-        else if (k == QLatin1String("ip"))
-            ip = v;
         else if (k == QLatin1String("result")) {
             resultKnown = true;
             succeeded = (v == QLatin1String("ok"));
@@ -136,8 +169,10 @@ void VpnState::parse(const QString &text, bool fromToggle)
     emit changed();
     if (!fromToggle)
         return;
-    if ((resultKnown && succeeded) || (!resultKnown && up != wasUp)) {
-        HardwareOsd::instance()->showVpn(up, interfaceName, ip);
+    const bool nowUp = tun1Up || tun2Up;
+    if ((resultKnown && succeeded) || (!resultKnown && nowUp != wasUp)) {
+        HardwareOsd::instance()->showVpn(
+            isUp(interfaceName), interfaceName, address(interfaceName));
         return;
     }
 
@@ -147,8 +182,8 @@ void VpnState::parse(const QString &text, bool fromToggle)
         QStringLiteral("vpn"), 0, QString(),
         QStringLiteral("VPN toggle failed"),
         QStringLiteral("WireGuard remained %1. Check wg-quick and sudo permissions.")
-            .arg(up ? QStringLiteral("connected")
-                    : QStringLiteral("disconnected")),
+            .arg(nowUp ? QStringLiteral("connected")
+                       : QStringLiteral("disconnected")),
         QStringList(), hints, 0);
 }
 
@@ -156,10 +191,14 @@ void VpnState::parse(const QString &text, bool fromToggle)
 
 VpnWidget::VpnWidget(QWidget *parent) : BarPill(parent)
 {
+    setFixedHeight(Theme::pillHeight * 2);
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    m_popup = new VpnPopup(this);
+    connect(this, &BarPill::clicked, m_popup, &ShellPopup::togglePopup);
+    connect(m_popup, &ShellPopup::popupVisibleChanged, this,
+            &BarPill::setActive);
     connect(VpnState::instance(), &VpnState::changed, this,
             &VpnWidget::sync);
-    connect(this, &BarPill::clicked, VpnState::instance(),
-            &VpnState::toggle);
     connect(this, &BarPill::rightClicked, VpnState::instance(),
             &VpnState::refresh);
     sync();
@@ -167,8 +206,92 @@ VpnWidget::VpnWidget(QWidget *parent) : BarPill(parent)
 
 void VpnWidget::sync()
 {
-    const bool up = VpnState::instance()->up;
-    setIcon(up ? glyph(U'\U000F099D') : glyph(U'\U000F099E'));
-    setTint(up ? Theme::accent : Theme::text);
-    setActive(up);
+    update();
+}
+
+QSize VpnWidget::sizeHint() const
+{
+    return QSize(230, Theme::pillHeight * 2);
+}
+
+void VpnWidget::paintEvent(QPaintEvent *)
+{
+    QPainter p(this);
+    Theme::paintRect(p, rect(),
+                     highlighted() ? Theme::surfaceHover : Theme::surface,
+                     Theme::radius * 2, Theme::accent, isActive() ? 2 : 0);
+
+    VpnState *vpn = VpnState::instance();
+    const QString tunnel = vpn->activeTunnel();
+    const bool connected = !tunnel.isEmpty();
+    const int iconW = 36;
+    p.setFont(Theme::font(28));
+    p.setPen(connected ? Theme::accent : Theme::text);
+    p.drawText(QRectF(12, 0, iconW, height()),
+               Qt::AlignLeft | Qt::AlignVCenter,
+               connected ? glyph(U'\U000F099D') : glyph(U'\U000F099E'));
+
+    const int textX = 12 + iconW + 8;
+    const int textW = width() - textX - 12;
+    if (connected) {
+        p.setFont(Theme::font(Theme::smallFontSize, true));
+        p.setPen(Theme::textStrong);
+        p.drawText(QRectF(textX, 6, textW, 20),
+                   Qt::AlignLeft | Qt::AlignVCenter, tunnel);
+        p.setFont(Theme::font(Theme::tinyFontSize));
+        p.setPen(Theme::textMuted);
+        p.drawText(QRectF(textX, height() - 24, textW, 18),
+                   Qt::AlignLeft | Qt::AlignVCenter,
+                   QStringLiteral("Connected"));
+    } else {
+        p.setFont(Theme::font(Theme::smallFontSize));
+        p.setPen(Theme::textMuted);
+        p.drawText(QRectF(textX, 0, textW, height()),
+                   Qt::AlignLeft | Qt::AlignVCenter,
+                   QStringLiteral("Disconnected"));
+    }
+}
+
+/* --------------------------------------------------------------- VpnPopup */
+
+VpnPopup::VpnPopup(QWidget *anchor) : ContentPopup(anchor, 230)
+{
+    m_manageAsTopLevel = false;
+    auto *lay = bodyLayout();
+    auto *title = new TextItem(body());
+    title->setPixelSize(Theme::bodyFontSize);
+    title->setBold(true);
+    title->setColor(Theme::textStrong);
+    title->setText(QStringLiteral("WireGuard tunnel"));
+    lay->addWidget(title);
+    lay->addWidget(new HLine(body()));
+
+    m_tun1 = new ShellButton(QStringLiteral("tun1"), body());
+    m_tun2 = new ShellButton(QStringLiteral("tun2"), body());
+    m_tun1->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    m_tun2->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    lay->addWidget(m_tun1);
+    lay->addWidget(m_tun2);
+
+    connect(m_tun1, &ShellButton::activated, this,
+            []() { VpnState::instance()->select(QStringLiteral("tun1")); });
+    connect(m_tun2, &ShellButton::activated, this,
+            []() { VpnState::instance()->select(QStringLiteral("tun2")); });
+    connect(VpnState::instance(), &VpnState::changed, this, &VpnPopup::sync);
+    connect(this, &ShellPopup::popupVisibleChanged, this, [](bool visible) {
+        if (visible)
+            VpnState::instance()->refresh();
+    });
+    sync();
+}
+
+void VpnPopup::sync()
+{
+    VpnState *vpn = VpnState::instance();
+    m_tun1->setLabel(vpn->tun1Up ? QStringLiteral("tun1 · Connected")
+                                 : QStringLiteral("tun1"));
+    m_tun2->setLabel(vpn->tun2Up ? QStringLiteral("tun2 · Connected")
+                                 : QStringLiteral("tun2"));
+    m_tun1->setActive(vpn->tun1Up);
+    m_tun2->setActive(vpn->tun2Up);
 }

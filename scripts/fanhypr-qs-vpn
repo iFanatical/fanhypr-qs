@@ -1,11 +1,10 @@
 #!/bin/sh
 # fanhypr-qs-vpn — WireGuard tunnel control for the panel's VPN widget.
-# Mirrors ~/.local/bin/vpn.sh (tunnel "tun1"), but emits key=value status the
-# panel can parse. wg-quick needs root; we use sudo -n (passwordless) when not
-# already root. Override the tunnel with $FANHYPR_QS_VPN_TUNNEL.
+# Controls the two tunnels exposed by the panel selector. wg-quick needs root;
+# we use sudo -n (passwordless) when not already root.
 set -eu
 
-TUNNEL="${FANHYPR_QS_VPN_TUNNEL:-tun1}"
+TUNNELS="tun1 tun2"
 
 run_wg() {
 	if [ "$(id -u)" -eq 0 ]; then
@@ -16,47 +15,62 @@ run_wg() {
 }
 
 is_up() {
-	ip link show "$TUNNEL" >/dev/null 2>&1
+	ip link show "$1" >/dev/null 2>&1
+}
+
+valid_tunnel() {
+	case "$1" in
+	tun1|tun2) return 0 ;;
+	*) return 1 ;;
+	esac
 }
 
 print_status() {
-	if is_up; then
-		ip_addr=$(ip -o -4 addr show "$TUNNEL" 2>/dev/null | awk '{print $4; exit}')
-		printf 'state=up\n'
-		printf 'iface=%s\n' "$TUNNEL"
-		printf 'ip=%s\n' "${ip_addr:-}"
-	else
-		printf 'state=down\n'
-		printf 'iface=%s\n' "$TUNNEL"
-		printf 'ip=\n'
-	fi
+	for tunnel in $TUNNELS; do
+		if is_up "$tunnel"; then
+			ip_addr=$(ip -o -4 addr show "$tunnel" 2>/dev/null | awk '{print $4; exit}')
+			printf '%s=up\n' "$tunnel"
+			printf '%s_ip=%s\n' "$tunnel" "${ip_addr:-}"
+		else
+			printf '%s=down\n' "$tunnel"
+			printf '%s_ip=\n' "$tunnel"
+		fi
+	done
 }
 
 case "${1:-status}" in
 status)
 	print_status
 	;;
-up)
-	is_up || run_wg up "$TUNNEL" >/dev/null 2>&1 || true
-	print_status
-	;;
-down)
-	! is_up || run_wg down "$TUNNEL" >/dev/null 2>&1 || true
-	print_status
-	;;
-toggle)
-	if is_up; then
-		run_wg down "$TUNNEL" >/dev/null 2>&1 || true
-		if is_up; then result=error; else result=ok; fi
+select)
+	tunnel="${2:-}"
+	if ! valid_tunnel "$tunnel"; then
+		printf 'usage: %s select [tun1|tun2]\n' "$0" >&2
+		exit 2
+	fi
+	if is_up "$tunnel"; then
+		run_wg down "$tunnel" >/dev/null 2>&1 || true
+		if is_up "$tunnel"; then result=error; else result=ok; fi
 	else
-		run_wg up "$TUNNEL" >/dev/null 2>&1 || true
-		if is_up; then result=ok; else result=error; fi
+		result=ok
+		for other in $TUNNELS; do
+			[ "$other" = "$tunnel" ] && continue
+			if is_up "$other"; then
+				run_wg down "$other" >/dev/null 2>&1 || true
+				if is_up "$other"; then result=error; fi
+			fi
+		done
+		if [ "$result" = ok ]; then
+			run_wg up "$tunnel" >/dev/null 2>&1 || true
+			if ! is_up "$tunnel"; then result=error; fi
+		fi
 	fi
 	print_status
+	printf 'iface=%s\n' "$tunnel"
 	printf 'result=%s\n' "$result"
 	;;
 *)
-	printf 'usage: %s [status|toggle|up|down]\n' "$0" >&2
+	printf 'usage: %s [status|select [tun1|tun2]]\n' "$0" >&2
 	exit 2
 	;;
 esac

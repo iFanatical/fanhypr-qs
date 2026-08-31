@@ -88,9 +88,7 @@ TextItem *sectionLabel(const QString &text, QWidget *parent)
 
 /* Weather: icon on the left, temperature stacked above the condition text on
  * the right. A dedicated pill-styled tile rather than a generic ScriptPill,
- * since it needs the temp/condition on separate lines (ScriptPill's
- * icon+label is a single line) and to match the VPN/Bluetooth/Clipboard
- * tiles' height (BarPill::setLarge's 2x, i.e. Theme::pillHeight * 2). */
+ * since it needs the temp/condition on separate lines. */
 class WeatherTile : public QWidget {
 public:
     explicit WeatherTile(QWidget *parent) : QWidget(parent)
@@ -334,27 +332,26 @@ SystemPopup::SystemPopup(QWidget *anchor) : ContentPopup(anchor, 360)
 
     lay->addWidget(new HLine(body()));
 
-    /* ---- weather + VPN/Bluetooth/Clipboard, moved off the bar and made
-     * ~2x bigger (BarPill::setLarge) since they're now full-size popup
-     * content rather than a compact bar row. ---- */
+    /* Weather takes the flexible part of the quick row; Bluetooth and
+     * Clipboard retain their compact fixed widths. VPN lives in its own
+     * full-width selector tile immediately below. */
     auto *quickRow = new QWidget(body());
     auto *qr = new QHBoxLayout(quickRow);
     qr->setContentsMargins(0, 0, 0, 0);
     qr->setSpacing(Theme::rowSpacing);
     auto *weather = new WeatherTile(quickRow);
-    auto *vpn = new VpnWidget(quickRow);
     auto *bt = new BluetoothWidget(quickRow);
     auto *clip = new ClipboardWidget(quickRow);
-    vpn->setLarge(true);
     bt->setLarge(true);
     clip->setLarge(true);
     qr->addWidget(weather, 1, Qt::AlignVCenter);
-    qr->addWidget(vpn, 0, Qt::AlignVCenter);
     qr->addWidget(bt, 0, Qt::AlignVCenter);
     qr->addWidget(clip, 0, Qt::AlignVCenter);
     lay->addWidget(quickRow);
     connect(this, &ShellPopup::popupVisibleChanged, weather,
             [weather](bool visible) { weather->setPolling(visible); });
+
+    lay->addWidget(new VpnWidget(body()));
 
     /* Full-width, standard D-Bus power-profile selector. It hides itself on
      * machines without a net.hadess.PowerProfiles provider. */
