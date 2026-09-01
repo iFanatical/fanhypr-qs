@@ -162,10 +162,9 @@ int main(int argc, char *argv[])
                 []() { NotificationService::instance()->toggleDnd(); });
     ipc->handle(QStringLiteral("vpn"), QStringLiteral("toggle"),
                 []() { VpnState::instance()->toggle(); });
-    ipc->handle(QStringLiteral("vpn"), QStringLiteral("tun1"),
-                []() { VpnState::instance()->select(QStringLiteral("tun1")); });
-    ipc->handle(QStringLiteral("vpn"), QStringLiteral("tun2"),
-                []() { VpnState::instance()->select(QStringLiteral("tun2")); });
+    for (const QString &tunnel : VpnState::instance()->tunnels())
+        ipc->handle(QStringLiteral("vpn"), tunnel,
+                    [tunnel]() { VpnState::instance()->select(tunnel); });
     ipc->handle(QStringLiteral("vpn"), QStringLiteral("refresh"),
                 []() { VpnState::instance()->refresh(); });
     ipc->handle(QStringLiteral("wallpaper"), QStringLiteral("toggle"),

@@ -6,6 +6,8 @@
 #include "procutil.h"
 #include "widgets.h"
 
+#include <QHash>
+
 /* A read-only bar pill fed by a script that prints `icon=`, `text=`, and
  * optional `color=` lines. Polled on `interval`. Hides when it prints
  * nothing. */
@@ -39,18 +41,13 @@ private:
     void sync();
 };
 
-/* WireGuard tun1/tun2 state (fanhypr-qs-vpn). No polling: status is read once
- * at startup and refreshed after a selection. Selecting an active tunnel
- * disconnects it; selecting the other switches tunnels. */
+/* Sequential WireGuard tunnel state (fanhypr-qs-vpn). FANHYPR_TUN_COUNT
+ * exposes tun1..tunN (default one). No polling: status is read once at startup
+ * and refreshed after a selection. */
 class VpnState : public QObject {
     Q_OBJECT
 public:
     static VpnState *instance();
-
-    bool tun1Up = false;
-    bool tun2Up = false;
-    QString tun1Ip;
-    QString tun2Ip;
 
     void refresh();
     void toggle();
@@ -58,6 +55,7 @@ public:
     bool isUp(const QString &tunnel) const;
     QString address(const QString &tunnel) const;
     QString activeTunnel() const;
+    const QStringList &tunnels() const { return m_tunnels; }
 
 signals:
     void changed();
@@ -68,6 +66,9 @@ private:
 
     CollectorProcess m_statusProc;
     CollectorProcess m_toggleProc;
+    QStringList m_tunnels;
+    QHash<QString, bool> m_up;
+    QHash<QString, QString> m_ips;
 };
 
 class VpnPopup;
@@ -88,7 +89,7 @@ protected:
 private:
     void sync();
 
-    VpnPopup *m_popup;
+    VpnPopup *m_popup = nullptr;
 };
 
 class VpnPopup : public ContentPopup {
@@ -99,8 +100,7 @@ public:
 private:
     void sync();
 
-    ShellButton *m_tun1;
-    ShellButton *m_tun2;
+    QVector<ShellButton *> m_buttons;
 };
 
 #endif

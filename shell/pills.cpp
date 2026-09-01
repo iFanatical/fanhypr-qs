@@ -93,6 +93,16 @@ VpnState *VpnState::instance()
 
 VpnState::VpnState(QObject *parent) : QObject(parent)
 {
+    bool countOk = false;
+    int count = qEnvironmentVariableIntValue("FANHYPR_TUN_COUNT", &countOk);
+    if (!countOk || count < 1)
+        count = 1;
+    count = qMin(count, 32);
+    for (int i = 1; i <= count; ++i) {
+        const QString name = QStringLiteral("tun%1").arg(i);
+        m_tunnels.push_back(name);
+        m_up.insert(name, false);
+    }
     m_statusProc.setCommand({"fanhypr-qs-vpn", "status"});
     connect(&m_statusProc, &CollectorProcess::finished, this,
             [this](const QString &text) { parse(text, false); });
@@ -108,13 +118,13 @@ void VpnState::refresh()
 
 void VpnState::toggle()
 {
-    select(activeTunnel().isEmpty() ? QStringLiteral("tun1")
+    select(activeTunnel().isEmpty() ? m_tunnels.first()
                                     : activeTunnel());
 }
 
 void VpnState::select(const QString &tunnel)
 {
-    if (tunnel != QLatin1String("tun1") && tunnel != QLatin1String("tun2"))
+    if (!m_tunnels.contains(tunnel))
         return;
     m_toggleProc.start({QStringLiteral("fanhypr-qs-vpn"),
                         QStringLiteral("select"), tunnel});
@@ -122,26 +132,25 @@ void VpnState::select(const QString &tunnel)
 
 bool VpnState::isUp(const QString &tunnel) const
 {
-    return tunnel == QLatin1String("tun1") ? tun1Up : tun2Up;
+    return m_up.value(tunnel, false);
 }
 
 QString VpnState::address(const QString &tunnel) const
 {
-    return tunnel == QLatin1String("tun1") ? tun1Ip : tun2Ip;
+    return m_ips.value(tunnel);
 }
 
 QString VpnState::activeTunnel() const
 {
-    if (tun1Up)
-        return QStringLiteral("tun1");
-    if (tun2Up)
-        return QStringLiteral("tun2");
+    for (const QString &tunnel : m_tunnels)
+        if (m_up.value(tunnel))
+            return tunnel;
     return {};
 }
 
 void VpnState::parse(const QString &text, bool fromToggle)
 {
-    const bool wasUp = tun1Up || tun2Up;
+    const bool wasUp = !activeTunnel().isEmpty();
     bool resultKnown = false;
     bool succeeded = false;
     QString interfaceName;
@@ -151,14 +160,11 @@ void VpnState::parse(const QString &text, bool fromToggle)
         if (i < 0)
             continue;
         const QString k = l.left(i), v = l.mid(i + 1);
-        if (k == QLatin1String("tun1"))
-            tun1Up = (v == QLatin1String("up"));
-        else if (k == QLatin1String("tun2"))
-            tun2Up = (v == QLatin1String("up"));
-        else if (k == QLatin1String("tun1_ip"))
-            tun1Ip = v;
-        else if (k == QLatin1String("tun2_ip"))
-            tun2Ip = v;
+        if (m_up.contains(k))
+            m_up[k] = (v == QLatin1String("up"));
+        else if (k.endsWith(QLatin1String("_ip"))
+                 && m_up.contains(k.chopped(3)))
+            m_ips[k.chopped(3)] = v;
         else if (k == QLatin1String("iface"))
             interfaceName = v;
         else if (k == QLatin1String("result")) {
@@ -169,7 +175,7 @@ void VpnState::parse(const QString &text, bool fromToggle)
     emit changed();
     if (!fromToggle)
         return;
-    const bool nowUp = tun1Up || tun2Up;
+    const bool nowUp = !activeTunnel().isEmpty();
     if ((resultKnown && succeeded) || (!resultKnown && nowUp != wasUp)) {
         HardwareOsd::instance()->showVpn(
             isUp(interfaceName), interfaceName, address(interfaceName));
@@ -193,14 +199,17 @@ VpnWidget::VpnWidget(QWidget *parent) : BarPill(parent)
 {
     setFixedHeight(Theme::pillHeight * 2);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    m_popup = new VpnPopup(this);
-    connect(this, &BarPill::clicked, m_popup, &ShellPopup::togglePopup);
-    connect(m_popup, &ShellPopup::popupVisibleChanged, this,
-            &BarPill::setActive);
-    connect(VpnState::instance(), &VpnState::changed, this,
-            &VpnWidget::sync);
-    connect(this, &BarPill::rightClicked, VpnState::instance(),
-            &VpnState::refresh);
+    VpnState *vpn = VpnState::instance();
+    if (vpn->tunnels().size() == 1) {
+        connect(this, &BarPill::clicked, vpn, &VpnState::toggle);
+    } else {
+        m_popup = new VpnPopup(this);
+        connect(this, &BarPill::clicked, m_popup, &ShellPopup::togglePopup);
+        connect(m_popup, &ShellPopup::popupVisibleChanged, this,
+                &BarPill::setActive);
+    }
+    connect(vpn, &VpnState::changed, this, &VpnWidget::sync);
+    connect(this, &BarPill::rightClicked, vpn, &VpnState::refresh);
     sync();
 }
 
@@ -266,17 +275,15 @@ VpnPopup::VpnPopup(QWidget *anchor) : ContentPopup(anchor, 230)
     lay->addWidget(title);
     lay->addWidget(new HLine(body()));
 
-    m_tun1 = new ShellButton(QStringLiteral("tun1"), body());
-    m_tun2 = new ShellButton(QStringLiteral("tun2"), body());
-    m_tun1->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    m_tun2->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    lay->addWidget(m_tun1);
-    lay->addWidget(m_tun2);
-
-    connect(m_tun1, &ShellButton::activated, this,
-            []() { VpnState::instance()->select(QStringLiteral("tun1")); });
-    connect(m_tun2, &ShellButton::activated, this,
-            []() { VpnState::instance()->select(QStringLiteral("tun2")); });
+    for (const QString &tunnel : VpnState::instance()->tunnels()) {
+        auto *button = new ShellButton(tunnel, body());
+        button->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        lay->addWidget(button);
+        m_buttons.push_back(button);
+        connect(button, &ShellButton::activated, this, [tunnel]() {
+            VpnState::instance()->select(tunnel);
+        });
+    }
     connect(VpnState::instance(), &VpnState::changed, this, &VpnPopup::sync);
     connect(this, &ShellPopup::popupVisibleChanged, this, [](bool visible) {
         if (visible)
@@ -288,10 +295,12 @@ VpnPopup::VpnPopup(QWidget *anchor) : ContentPopup(anchor, 230)
 void VpnPopup::sync()
 {
     VpnState *vpn = VpnState::instance();
-    m_tun1->setLabel(vpn->tun1Up ? QStringLiteral("tun1 · Connected")
-                                 : QStringLiteral("tun1"));
-    m_tun2->setLabel(vpn->tun2Up ? QStringLiteral("tun2 · Connected")
-                                 : QStringLiteral("tun2"));
-    m_tun1->setActive(vpn->tun1Up);
-    m_tun2->setActive(vpn->tun2Up);
+    const QStringList &tunnels = vpn->tunnels();
+    for (int i = 0; i < m_buttons.size() && i < tunnels.size(); ++i) {
+        const QString &tunnel = tunnels[i];
+        const bool up = vpn->isUp(tunnel);
+        m_buttons[i]->setLabel(up ? tunnel + QStringLiteral(" · Connected")
+                                  : tunnel);
+        m_buttons[i]->setActive(up);
+    }
 }
