@@ -135,6 +135,40 @@ shell started may need to be restarted once so it notices the new tray owner.
 Colours follow the dwm tag convention: **active** purple/pink, **has windows** white,
 **empty** gray.
 
+### Centered Fanos menu
+
+```sh
+fanhypr-qs-shell ipc call menu toggle
+```
+
+`menu show` and `menu hide` are also supported. The menu opens in the center
+of the focused output, with the Fanos sections Apps, Websites, Configuration,
+Troubleshooting, Learn, Update, About, and System. Type to filter the current
+section, use arrows and Enter (or click) to select, and Escape to return to
+the main menu or close it. Clicking outside closes the menu.
+
+Example Lua keybinding:
+
+```lua
+hl.bind("SUPER + ALT + Space", hl.dsp.exec_cmd("fanhypr-qs-shell ipc call menu toggle"))
+```
+
+Apps and Wallpaper open the native shell pickers. Websites use
+`fanos-launch-webapp` when installed, falling back to `xdg-open`. Configuration
+opens the current Lua config files in `$EDITOR` within `$TERMINAL` (defaults:
+`nvim`, `alacritty`); Shell Style opens `shell/theme.h` under
+`$FANHYPR_QS_SOURCE_DIR`, defaulting to
+`~/projects/window-managers/fanhypr-qs`. Rebuild after changing that theme.
+
+The installed `fanhypr-qs-menu-action` helper replaces old Rofi-returning
+wrappers. Updates support pacman, emerge, dnf, or apt, with terminal output and
+normal privilege prompts. Troubleshooting retains Fanos's dinit recovery
+actions; audio also supports systemd user services. Unsupported service setups
+display an explanation in the terminal. Reboot, shutdown, logout, updates, and
+service recovery require confirmation in the menu. Screensaver currently
+locks the session, since the original Fanos entry had no implemented action.
+The tray System popup continues to work independently.
+
 ### Emoji picker
 
 The launcher has a searchable emoji mode:

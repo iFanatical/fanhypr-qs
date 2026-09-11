@@ -90,7 +90,12 @@ void AppLauncher::refilter()
 
     const QString q = searchText.toLower().trimmed();
     QVector<LauncherItem> out;
-    if (mode == QLatin1String("emoji")) {
+    if (mode == QLatin1String("menu")) {
+        for (const LauncherItem &item : menuItems())
+            if (q.isEmpty() || (item.name + QLatin1Char(' ') + item.sub)
+                                  .toLower().contains(q))
+                out.push_back(item);
+    } else if (mode == QLatin1String("emoji")) {
         const QStringList terms = q.split(QLatin1Char(' '), Qt::SkipEmptyParts);
         for (const EmojiEntry &emoji : emojis) {
             const QString haystack =
@@ -183,6 +188,10 @@ void AppLauncher::launchSelected()
      * dangling reference. */
     if (selected >= 0 && selected < entries.size()) {
         LauncherItem it = entries[selected];
+        if (!it.menuAction.isEmpty()) {
+            activateMenuItem(it.menuAction);
+            return;
+        }
         hideLauncher();
         if (it.isApp) {
             it.app.execute();
@@ -233,6 +242,8 @@ void AppLauncher::movePage(int delta)
 void AppLauncher::openMode(const QString &m)
 {
     mode = m;
+    if (m == QLatin1String("menu"))
+        menuPage = QStringLiteral("main");
     searchText.clear();
     if (m == QLatin1String("run"))
         m_binScan.start(); /* (re)scan $PATH; refilter again when it ends */
@@ -443,19 +454,21 @@ LauncherWindow::LauncherWindow(AppLauncher *l)
     });
 }
 
-static QRect boxRectFor(const QSize &winSize, int gridContentH)
+static QRect boxRectFor(const QSize &winSize, int gridContentH, bool centered)
 {
     const int w = 820;
     const int h = qMin(520, 2 * Theme::popupMargin + Theme::buttonHeight
                                 + Theme::listSpacing + gridContentH);
     const int x = (winSize.width() - w) / 2;
-    const int y = qRound(winSize.height() * 0.28);
+    const int y = centered ? (winSize.height() - h) / 2
+                           : qRound(winSize.height() * 0.28);
     return QRect(x, y, w, h);
 }
 
 void LauncherWindow::layoutBox()
 {
-    const QRect box = boxRectFor(size(), m_grid->contentHeight());
+    const QRect box = boxRectFor(size(), m_grid->contentHeight(),
+                                m_l->mode == QLatin1String("menu"));
     /* search bar: box margins 14, height 28 */
     const QRect bar(box.x() + Theme::popupMargin, box.y() + Theme::popupMargin,
                     box.width() - 2 * Theme::popupMargin, Theme::buttonHeight);
@@ -486,7 +499,9 @@ void LauncherWindow::openOn(QScreen *screen)
     m_search->clear();
     m_search->blockSignals(false);
     m_search->setPlaceholderText(
-        m_l->mode == QLatin1String("run")
+        m_l->mode == QLatin1String("menu")
+            ? m_l->menuTitle() + QStringLiteral(" — search actions…")
+            : m_l->mode == QLatin1String("run")
             ? QStringLiteral("Run a command…")
             : (m_l->mode == QLatin1String("emoji")
                    ? QStringLiteral("Search emoji names…")
@@ -544,7 +559,8 @@ void LauncherWindow::mousePressEvent(QMouseEvent *e)
 {
     /* Click on the (transparent) dim outside the box closes the launcher;
      * clicks inside the box are swallowed. */
-    const QRect box = boxRectFor(size(), m_grid->contentHeight());
+    const QRect box = boxRectFor(size(), m_grid->contentHeight(),
+                                m_l->mode == QLatin1String("menu"));
     if (!box.contains(e->pos()))
         m_l->hideLauncher();
 }
@@ -553,7 +569,11 @@ bool LauncherWindow::handleKey(QKeyEvent *k)
 {
     const bool ctrl = k->modifiers() & Qt::ControlModifier;
     if (k->key() == Qt::Key_Escape) {
-        m_l->hideLauncher();
+        if (m_l->mode == QLatin1String("menu")
+                && m_l->menuPage != QLatin1String("main"))
+            m_l->openMenuPage(QStringLiteral("main"));
+        else
+            m_l->hideLauncher();
         return true;
     }
     if (k->key() == Qt::Key_Return || k->key() == Qt::Key_Enter) {
@@ -622,7 +642,8 @@ void LauncherWindow::paintEvent(QPaintEvent *)
 {
     QPainter p(this);
     /* No dim: fully transparent overlay; only the box is visible. */
-    const QRect box = boxRectFor(size(), m_grid->contentHeight());
+    const QRect box = boxRectFor(size(), m_grid->contentHeight(),
+                                m_l->mode == QLatin1String("menu"));
     Theme::paintRect(p, box, Theme::bg, Theme::radius, Theme::border, 1);
     const QRect bar(box.x() + Theme::popupMargin, box.y() + Theme::popupMargin,
                     box.width() - 2 * Theme::popupMargin, Theme::buttonHeight);

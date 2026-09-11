@@ -40,7 +40,7 @@ LDLIBS    = $(shell pkg-config --libs $(PKGS)) $(LSQT_LIBS)
 MODULES  = widgets popup wlutil procutil hypripc hyprstate calendar pills \
            panel network bluetooth volume tray traymenu desktopentry \
            launcher ipc clipboard system battery wallpaper notification osd \
-           hardwarecontrols powerprofiles media
+           hardwarecontrols powerprofiles media menu
 # headers containing Q_OBJECT classes
 MOCHDRS  = widgets popup procutil hypripc hyprstate calendar pills panel \
            network bluetooth volume tray traymenu desktopentry launcher ipc \

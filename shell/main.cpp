@@ -4,7 +4,7 @@
  *   fanhypr-qs-shell [--no-duplicate]        run the shell
  *   fanhypr-qs-shell ipc call <target> <fn>  poke a running instance
  *                    (targets: shell, launcher, runner, emoji, notifications,
- *                     audio, brightness, media, vpn, wallpaper) */
+ *                     audio, brightness, media, vpn, wallpaper, menu) */
 #include <QApplication>
 #include <QHash>
 #include <QScreen>
@@ -103,6 +103,15 @@ int main(int argc, char *argv[])
     WallpaperPicker::instance();
 
     auto *ipc = new IpcServer(&app);
+    ipc->handle(QStringLiteral("menu"), QStringLiteral("toggle"),
+                [launcher]() { launcher->toggleMode(QStringLiteral("menu")); });
+    ipc->handle(QStringLiteral("menu"), QStringLiteral("show"),
+                [launcher]() { launcher->openMode(QStringLiteral("menu")); });
+    ipc->handle(QStringLiteral("menu"), QStringLiteral("hide"),
+                [launcher]() {
+                    if (launcher->mode == QLatin1String("menu"))
+                        launcher->hideLauncher();
+                });
     HardwareControls *hardware = HardwareControls::instance();
     MediaControls *media = MediaControls::instance();
     ipc->handle(QStringLiteral("shell"), QStringLiteral("quit"),

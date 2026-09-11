@@ -1,6 +1,7 @@
-/* Centered, IPC-triggered launcher with three modes:
+/* IPC-triggered launcher with four modes:
  *   "apps" — .desktop entries;  "run" — executables on $PATH;
- *   "emoji" — Unicode name search copied through wl-copy.
+ *   "emoji" — Unicode name search copied through wl-copy;
+ *   "menu" — centered, searchable Fanos system menu.
  * A fullscreen wlr-layer-shell surface on the Overlay layer with exclusive
  * keyboard focus, so it needs no compositor-side window rule at all (the dwm
  * build had to be taught to recognise it by window title). Clicking outside
@@ -32,6 +33,7 @@ struct LauncherItem {
     bool isEmoji = false;
     DesktopEntry app;  /* apps mode */
     QString cmd;       /* binary name (run mode) */
+    QString menuAction; /* menu navigation or a named system-menu action */
 };
 
 struct EmojiEntry {
@@ -47,13 +49,18 @@ class AppLauncher : public QObject {
 public:
     explicit AppLauncher(QObject *parent = nullptr);
 
-    QString mode = QStringLiteral("apps"); /* "apps" | "run" | "emoji" */
+    QString mode = QStringLiteral("apps"); /* "apps" | "run" | "emoji" | "menu" */
     QStringList binaries;
     QVector<EmojiEntry> emojis;
     QVector<LauncherItem> entries;
     int selected = 0;
     static constexpr int columns = 2;
     QString searchText;
+    QString menuPage = QStringLiteral("main");
+    QString menuTitle() const;
+    QVector<LauncherItem> menuItems() const;
+    void openMenuPage(const QString &page);
+    void activateMenuItem(const QString &action);
 
     void refilter();
     void launchSelected();
