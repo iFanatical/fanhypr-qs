@@ -3,6 +3,7 @@
 #include <QApplication>
 #include <QGuiApplication>
 #include <QIcon>
+#include <QFileInfo>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
@@ -289,14 +290,14 @@ LauncherGrid::LauncherGrid(AppLauncher *l, QWidget *parent)
 int LauncherGrid::contentHeight() const
 {
     const int rows =
-        (m_l->entries.size() + AppLauncher::columns - 1) / AppLauncher::columns;
+        (m_l->entries.size() + m_l->columnCount() - 1) / m_l->columnCount();
     return rows * 48;
 }
 
 int LauncherGrid::pageStep() const
 {
     /* Advance by whole visible rows and keep the selected column stable. */
-    return qMax(1, height() / 48) * AppLauncher::columns;
+    return qMax(1, height() / 48) * m_l->columnCount();
 }
 
 void LauncherGrid::clampScroll()
@@ -308,7 +309,7 @@ void LauncherGrid::ensureVisible()
 {
     if (height() <= 0)
         return; /* not laid out yet; resizeEvent re-runs this */
-    const int row = m_l->selected / AppLauncher::columns;
+    const int row = m_l->selected / m_l->columnCount();
     const int top = row * 48;
     if (top - m_scroll < 0)
         m_scroll = top;
@@ -322,9 +323,9 @@ int LauncherGrid::indexAt(const QPoint &p) const
     const int cw = cellWidth();
     if (cw <= 0)
         return -1;
-    const int col = qMin(p.x() / cw, AppLauncher::columns - 1);
+    const int col = qMin(p.x() / cw, m_l->columnCount() - 1);
     const int row = (p.y() + m_scroll) / 48;
-    const int idx = row * AppLauncher::columns + col;
+    const int idx = row * m_l->columnCount() + col;
     return (idx >= 0 && idx < m_l->entries.size()) ? idx : -1;
 }
 
@@ -332,13 +333,13 @@ void LauncherGrid::paintEvent(QPaintEvent *)
 {
     QPainter p(this);
     const int cw = cellWidth();
-    const int first = (m_scroll / 48) * AppLauncher::columns;
+    const int first = (m_scroll / 48) * m_l->columnCount();
     const int last = qMin(m_l->entries.size() - 1,
                           ((m_scroll + height()) / 48 + 1)
-                              * AppLauncher::columns);
+                              * m_l->columnCount());
     for (int i = qMax(0, first); i <= last; i++) {
-        const int row = i / AppLauncher::columns;
-        const int col = i % AppLauncher::columns;
+        const int row = i / m_l->columnCount();
+        const int col = i % m_l->columnCount();
         const QRect cell(col * cw, row * 48 - m_scroll, cw, 48);
         /* Inset from the cell edges (compactSpacing / 2). */
         const QRect inner = cell.adjusted(1, 1, -1, -1);
@@ -358,7 +359,10 @@ void LauncherGrid::paintEvent(QPaintEvent *)
             p.drawText(iconRect.adjusted(-2, -2, 4, 4),
                        Qt::AlignCenter, it.icon);
         } else {
-            QIcon icon = QIcon::fromTheme(it.icon);
+            QIcon icon = QFileInfo::exists(it.icon) ? QIcon(it.icon)
+                                                   : QIcon::fromTheme(it.icon);
+            if (icon.isNull() && it.menuAction.startsWith(QLatin1String("url:")))
+                icon = QIcon::fromTheme(QStringLiteral("web-browser"));
             if (icon.isNull())
                 icon = QIcon::fromTheme(
                     QStringLiteral("application-x-executable"));
@@ -456,7 +460,7 @@ LauncherWindow::LauncherWindow(AppLauncher *l)
 
 static QRect boxRectFor(const QSize &winSize, int gridContentH, bool centered)
 {
-    const int w = 820;
+    const int w = qMin(centered ? 560 : 820, qMax(1, winSize.width() - 28));
     const int h = qMin(520, 2 * Theme::popupMargin + Theme::buttonHeight
                                 + Theme::listSpacing + gridContentH);
     const int x = (winSize.width() - w) / 2;
@@ -581,11 +585,11 @@ bool LauncherWindow::handleKey(QKeyEvent *k)
         return true;
     }
     if (k->key() == Qt::Key_Down || (k->key() == Qt::Key_N && ctrl)) {
-        m_l->move(AppLauncher::columns);
+        m_l->move(m_l->columnCount());
         return true;
     }
     if (k->key() == Qt::Key_Up || (k->key() == Qt::Key_P && ctrl)) {
-        m_l->move(-AppLauncher::columns);
+        m_l->move(-m_l->columnCount());
         return true;
     }
     if (k->key() == Qt::Key_Right || (k->key() == Qt::Key_F && ctrl)) {

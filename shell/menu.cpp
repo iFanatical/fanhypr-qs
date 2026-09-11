@@ -2,7 +2,60 @@
 #include "wallpaper.h"
 
 #include <QProcess>
+#include <QDir>
+#include <QFile>
+#include <QJsonDocument>
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QStandardPaths>
+#include <QUrl>
 #include <csignal>
+
+// Loaded when the Websites page is built, so reopening picks up edits.
+static bool websiteItems(QVector<LauncherItem> &items)
+{
+    const QString folder = QStandardPaths::writableLocation(
+        QStandardPaths::GenericConfigLocation) + QStringLiteral("/fanhypr-qs");
+    QFile file(folder + QStringLiteral("/websites.json"));
+    if (!file.exists())
+        return false;
+    if (!file.open(QIODevice::ReadOnly)) {
+        qWarning("fanhypr-qs: cannot read websites.json; using defaults");
+        return false;
+    }
+    QJsonParseError error;
+    const QJsonDocument document = QJsonDocument::fromJson(file.readAll(), &error);
+    if (error.error != QJsonParseError::NoError || !document.isArray()) {
+        qWarning("fanhypr-qs: websites.json must be a JSON array; using defaults");
+        return false;
+    }
+    QVector<LauncherItem> result;
+    for (const QJsonValue &value : document.array()) {
+        const QJsonObject obj = value.toObject();
+        const QString name = obj.value(QStringLiteral("name")).toString().trimmed();
+        const QString address = obj.value(QStringLiteral("url")).toString().trimmed();
+        const QUrl url(address);
+        if (name.isEmpty() || !url.isValid() || url.host().isEmpty()
+                || (url.scheme() != QLatin1String("https")
+                    && url.scheme() != QLatin1String("http"))) {
+            qWarning("fanhypr-qs: invalid website entry; using defaults");
+            return false;
+        }
+        LauncherItem item;
+        item.name = name;
+        item.sub = obj.value(QStringLiteral("description")).toString(address);
+        item.icon = obj.value(QStringLiteral("icon")).toString(QStringLiteral("web-browser"));
+        if (item.icon.startsWith(QLatin1String("~/")))
+            item.icon = QDir::homePath() + item.icon.mid(1);
+        else if (item.icon.contains(QLatin1Char('/')) && QDir::isRelativePath(item.icon))
+            item.icon = QDir(folder).filePath(item.icon);
+        item.menuAction = QStringLiteral("url:") + address;
+        item.cmd = item.menuAction;
+        result.push_back(item);
+    }
+    items += result;
+    return true;
+}
 
 QString AppLauncher::menuTitle() const
 {
@@ -38,6 +91,7 @@ QVector<LauncherItem> AppLauncher::menuItems() const
         add("About", "System and hardware information", "about", "help-about");
         add("System", "Lock, suspend, restart and shut down", "page:system", "system-shutdown");
     } else if (menuPage == QLatin1String("websites")) {
+        if (!websiteItems(items)) {
         add("YouTube", "youtube.com", "url:https://youtube.com", "web-browser");
         add("Twitch", "Followed channels", "url:https://www.twitch.tv/directory/following", "web-browser");
         add("Jellyfin", "Home media server", "url:http://jellyfin.bush.local:8096/web/#/home.html", "web-browser");
@@ -47,6 +101,7 @@ QVector<LauncherItem> AppLauncher::menuItems() const
         add("Gmail", "Inbox", "url:https://mail.google.com/mail/u/0/#inbox", "web-browser");
         add("Reminders", "Google Tasks", "url:https://tasks.google.com/tasks/", "web-browser");
         add("Drive", "Google Drive", "url:https://drive.google.com/drive/", "web-browser");
+        }
     } else if (menuPage == QLatin1String("configuration")) {
         add("Wallpaper", "Open the shell wallpaper picker", "wallpaper", "preferences-desktop-wallpaper");
         add("Bindings", "Default keybindings (or keybindings.lua)", "edit:bindings");

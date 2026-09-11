@@ -162,12 +162,39 @@ opens the current Lua config files in `$EDITOR` within `$TERMINAL` (defaults:
 
 The installed `fanhypr-qs-menu-action` helper replaces old Rofi-returning
 wrappers. Updates support pacman, emerge, dnf, or apt, with terminal output and
-normal privilege prompts. Troubleshooting retains Fanos's dinit recovery
+normal privilege prompts.
+Alacritty windows use matching classes and fixed titles: `fanos-about`,
+`fanos-update`, `fanos-config`, and `fanos-troubleshooting`.
+Troubleshooting retains Fanos's dinit recovery
 actions; audio also supports systemd user services. Unsupported service setups
 display an explanation in the terminal. Reboot, shutdown, logout, updates, and
 service recovery require confirmation in the menu. Screensaver currently
 locks the session, since the original Fanos entry had no implemented action.
 The tray System popup continues to work independently.
+
+The Fanos menu and its submenus use a vertical list. The application launcher,
+runner, and emoji picker retain their two-column grids.
+
+Website entries can be customized without rebuilding. Copy `config/websites.json`
+to `~/.config/fanhypr-qs/websites.json` (or under `$XDG_CONFIG_HOME`), then edit
+that file. Reopen Websites to read the changes. Entries appear in file order:
+
+```json
+[
+  {
+    "name": "YouTube",
+    "url": "https://youtube.com",
+    "description": "Videos",
+    "icon": "youtube"
+  }
+]
+```
+
+`description` and `icon` are optional. Icons accept icon-theme names, absolute
+image paths, `~/` paths, or relative paths such as `icons/youtube.png` resolved
+from the `fanhypr-qs` configuration directory. Missing website icons fall back
+to the browser icon. No favicons are downloaded automatically. An absent or
+invalid file uses the built-in website list; an empty array hides all websites.
 
 ### Emoji picker
 

@@ -8,7 +8,20 @@ source_root=${FANHYPR_QS_SOURCE_DIR:-$HOME/projects/window-managers/fanhypr-qs}
 
 terminal() {
     local -a terminal_cmd
+    local identity
+    case "$action" in
+        about) identity=fanos-about ;;
+        execute:update) identity=fanos-update ;;
+        edit:*) identity=fanos-config ;;
+        execute:audio|execute:dinit|execute:gpu) identity=fanos-troubleshooting ;;
+        *) identity=fanos-menu ;;
+    esac
     read -r -a terminal_cmd <<< "${TERMINAL:-alacritty}"
+    if [[ "${terminal_cmd[0]##*/}" == alacritty ]]; then
+        # Keep the title stable even when an editor or shell emits title escapes.
+        terminal_cmd+=(--class "$identity" --title "$identity"
+                       -o window.dynamic_title=false)
+    fi
     exec "${terminal_cmd[@]}" -e "$0" terminal "$action"
 }
 

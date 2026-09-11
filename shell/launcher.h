@@ -55,6 +55,7 @@ public:
     QVector<LauncherItem> entries;
     int selected = 0;
     static constexpr int columns = 2;
+    int columnCount() const { return mode == QLatin1String("menu") ? 1 : columns; }
     QString searchText;
     QString menuPage = QStringLiteral("main");
     QString menuTitle() const;
@@ -101,7 +102,7 @@ protected:
     void resizeEvent(QResizeEvent *) override;
 
 private:
-    int cellWidth() const { return width() / AppLauncher::columns; }
+    int cellWidth() const { return width() / m_l->columnCount(); }
     int indexAt(const QPoint &p) const;
     void clampScroll();
 
