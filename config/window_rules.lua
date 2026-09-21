@@ -226,12 +226,9 @@ hl.window_rule ({
 
 -- rdp
 hl.window_rule ({
-    match = { class = "org.remmina.Remmina", title = "^(fanwin10)$|^(Winsor Laptop)$" },
-    maximize = true,
-})
-hl.window_rule ({
-    match = { class = "org.remmina.Remmina" },
     tag = "+rdp",
+    match = { class = "org.remmina.Remmina" },
+    fullscreen_state = 1,
 })
 hl.window_rule ({
     match = { tag = "rdp" },
