@@ -46,6 +46,11 @@ hl.window_rule ({
 })
 hl.window_rule ({
     tag = "+games",
+    match = { class = "^(gunz.exe)$" },
+    fullscreen = 1,
+})
+hl.window_rule ({
+    tag = "+games",
     match = { class = "^(wow.exe)$" },
 })
 hl.window_rule ({
