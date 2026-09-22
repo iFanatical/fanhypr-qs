@@ -135,6 +135,11 @@ shell started may need to be restarted once so it notices the new tray owner.
 Colours follow the dwm tag convention: **active** purple/pink, **has windows** white,
 **empty** gray.
 
+The main bar background is 80% opaque, matching the configured Alacritty
+opacity. Adjust `Theme::panelOpacity` in `shell/theme.h` (0–255) and rebuild
+to change it. Text and icons retain their normal opacity. Transparency is
+painted by the shell; optional background blur is controlled by Hyprland.
+
 ### Centered Fanos menu
 
 ```sh

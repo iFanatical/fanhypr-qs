@@ -89,6 +89,7 @@ Panel::Panel(HyprState *state, QScreen *screen)
       m_state(state), m_screen(screen)
 {
     setAttribute(Qt::WA_ShowWithoutActivating);
+    setAttribute(Qt::WA_TranslucentBackground);
 
     /* Left group (workspaces / layout symbol / title) and the right-side pill
      * cluster each get their own container so the clock can be positioned at
@@ -326,5 +327,7 @@ void Panel::relayoutBar()
 void Panel::paintEvent(QPaintEvent *)
 {
     QPainter p(this);
-    p.fillRect(rect(), Theme::bg);
+    QColor background = Theme::bg;
+    background.setAlpha(Theme::panelOpacity);
+    p.fillRect(rect(), background);
 }
