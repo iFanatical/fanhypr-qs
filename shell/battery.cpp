@@ -213,13 +213,26 @@ PowerDrawState::PowerDrawState(QObject *parent) : QObject(parent)
     /* Slower than the battery's 15s: this is ambient interest, and the
      * component script holds a sample window open to difference RAPL. */
     auto *timer = new QTimer(this);
+    timer->setInterval(20000);
     connect(timer, &QTimer::timeout, this, [this]() {
         m_proc.start();
         m_ups.start();
     });
-    timer->start(20000);
-    m_proc.start();
-    m_ups.start();
+
+    /* The power pill only ever shows on a machine without a battery, so a
+     * laptop never needs these samples. Wait for BatteryState's first answer
+     * and poll only while it says there is no battery. */
+    connect(BatteryState::instance(), &BatteryState::changed, this,
+            [this, timer]() {
+                const bool wanted = !BatteryState::instance()->present;
+                if (wanted && !timer->isActive()) {
+                    timer->start();
+                    m_proc.start();
+                    m_ups.start();
+                } else if (!wanted && timer->isActive()) {
+                    timer->stop();
+                }
+            });
 }
 
 void PowerDrawState::parse(const QString &text)

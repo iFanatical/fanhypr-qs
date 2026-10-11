@@ -36,12 +36,19 @@ ClipboardState::ClipboardState(QObject *parent) : QObject(parent)
      *
      * --watch runs the command once per new selection with the content on
      * its stdin; `cat` copies it through byte for byte and the printf marks
-     * the end, because wl-paste itself puts no delimiter between them. */
+     * the end, because wl-paste itself puts no delimiter between them.
+     *
+     * Password managers (KeePassXC, KDE's, ...) tag secrets with the
+     * x-kde-passwordManagerHint type. Those are drained and dropped so a
+     * copied password never lands in the history popup. Draining rather than
+     * just exiting keeps wl-paste from writing into a closed pipe. */
     m_watch = new BlockWatchProcess(
         {QStringLiteral("wl-paste"), QStringLiteral("--type"),
          QStringLiteral("text"), QStringLiteral("--watch"),
          QStringLiteral("sh"), QStringLiteral("-c"),
-         QStringLiteral("cat; printf '\\000'")},
+         QStringLiteral("if wl-paste --list-types 2>/dev/null"
+                        " | grep -qx x-kde-passwordManagerHint; then"
+                        " cat >/dev/null; else cat; printf '\\000'; fi")},
         QByteArray(1, '\0'), this);
     connect(m_watch, &BlockWatchProcess::block, this,
             [this](const QString &text) {

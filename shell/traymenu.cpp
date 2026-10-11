@@ -7,6 +7,7 @@
 #include <QDBusVariant>
 #include <QDateTime>
 #include <QEnterEvent>
+#include <QHash>
 #include <QIcon>
 #include <QMouseEvent>
 #include <QPainter>
@@ -322,6 +323,11 @@ void TrayMenu::rebuildRows()
 
     relayout();
 
+    /* Submenus are anchored to the row that opened them, and those rows were
+     * just deleted. Re-anchor each to its replacement row below, or close it
+     * if its entry is gone -- otherwise it would be positioned against a
+     * dead anchor and land at the output's top-left corner. */
+    QHash<int, QWidget *> rowForId;
     int y = 4;
     for (const DBusMenuClient::Entry &e : m_entries) {
         auto *row = new MenuRow(e, this);
@@ -331,6 +337,7 @@ void TrayMenu::rebuildRows()
             if (en.hasChildren) {
                 for (const QPointer<TrayMenu> &s : m_subs) {
                     if (s && s->m_parentId == en.id) {
+                        s->setAnchor(r);
                         s->openPopup();
                         return;
                     }
@@ -347,5 +354,18 @@ void TrayMenu::rebuildRows()
         };
         row->show();
         m_rows.push_back(row);
+        rowForId.insert(e.id, row);
+    }
+
+    for (const QPointer<TrayMenu> &s : std::as_const(m_subs)) {
+        if (!s)
+            continue;
+        if (QWidget *row = rowForId.value(s->m_parentId)) {
+            s->setAnchor(row);
+            if (s->isVisible())
+                s->relayout();
+        } else if (s->isVisible()) {
+            s->closePopup();
+        }
     }
 }

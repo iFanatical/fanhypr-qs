@@ -1,6 +1,7 @@
 #include "volume.h"
 
 #include <QMouseEvent>
+#include <QTimer>
 
 #include <pulse/pulseaudio.h>
 
@@ -13,6 +14,8 @@ struct PulseBackend::Priv {
     QString defaultSourceName;
     uint8_t sinkChannels = 2;
     uint8_t sourceChannels = 1;
+    /* GUI thread only: a reconnect is already scheduled. */
+    bool reconnectPending = false;
 
     /* Pending state assembled on the PA thread, then applied on the GUI
      * thread via queued invocation. */
@@ -22,7 +25,18 @@ struct PulseCallbacks {
     static void contextState(pa_context *c, void *ud)
     {
         auto *self = static_cast<PulseBackend *>(ud);
-        if (pa_context_get_state(c) == PA_CONTEXT_READY) {
+        const pa_context_state_t state = pa_context_get_state(c);
+        if (state == PA_CONTEXT_FAILED || state == PA_CONTEXT_TERMINATED) {
+            /* The server went away (pipewire-pulse restarted, e.g. from the
+             * menu's audio recovery). NOFAIL only covers the initial
+             * connect; a dropped context stays dead, so build a new one --
+             * from the GUI thread, never from inside this callback. */
+            QMetaObject::invokeMethod(
+                self, [self]() { self->connectionLost(); },
+                Qt::QueuedConnection);
+            return;
+        }
+        if (state == PA_CONTEXT_READY) {
             pa_context_set_subscribe_callback(c, subscribe, ud);
             pa_operation *o = pa_context_subscribe(
                 c,
@@ -164,19 +178,59 @@ PulseBackend::PulseBackend(QObject *parent) : QObject(parent), d(new Priv)
 void PulseBackend::start()
 {
     d->loop = pa_threaded_mainloop_new();
+    newContext();
+    pa_threaded_mainloop_start(d->loop);
+}
+
+/* Caller holds the mainloop lock, or the loop is not running yet. */
+void PulseBackend::newContext()
+{
     pa_mainloop_api *api = pa_threaded_mainloop_get_api(d->loop);
     d->ctx = pa_context_new(api, "fanhypr-qs-shell");
     pa_context_set_state_callback(d->ctx, PulseCallbacks::contextState, this);
     pa_context_connect(d->ctx, nullptr, PA_CONTEXT_NOFAIL, nullptr);
-    pa_threaded_mainloop_start(d->loop);
+}
+
+void PulseBackend::connectionLost()
+{
+    if (hasSink || hasSource || !sinks.isEmpty()) {
+        hasSink = false;
+        hasSource = false;
+        sinks.clear();
+        emit changed();
+    }
+    if (d->reconnectPending)
+        return;
+    d->reconnectPending = true;
+    /* A short pause lets a restarting server finish coming back up. */
+    QTimer::singleShot(1000, this, [this]() {
+        d->reconnectPending = false;
+        pa_threaded_mainloop_lock(d->loop);
+        const pa_context_state_t state = pa_context_get_state(d->ctx);
+        if (state == PA_CONTEXT_FAILED || state == PA_CONTEXT_TERMINATED) {
+            pa_context_set_state_callback(d->ctx, nullptr, nullptr);
+            pa_context_set_subscribe_callback(d->ctx, nullptr, nullptr);
+            pa_context_disconnect(d->ctx);
+            pa_context_unref(d->ctx);
+            d->defaultSinkName.clear();
+            d->defaultSourceName.clear();
+            newContext();
+        }
+        pa_threaded_mainloop_unlock(d->loop);
+    });
 }
 
 void PulseBackend::setSinkVolume(qreal v)
 {
     v = qMax<qreal>(0, qMin<qreal>(1, v));
-    if (!hasSink || d->defaultSinkName.isEmpty())
+    if (!hasSink)
         return;
+    /* defaultSinkName is written on the PA thread; read it under the lock. */
     pa_threaded_mainloop_lock(d->loop);
+    if (d->defaultSinkName.isEmpty()) {
+        pa_threaded_mainloop_unlock(d->loop);
+        return;
+    }
     pa_cvolume cv;
     pa_cvolume_set(&cv, d->sinkChannels,
                    (pa_volume_t)qRound64(v * PA_VOLUME_NORM));
@@ -192,9 +246,14 @@ void PulseBackend::setSinkVolume(qreal v)
 
 void PulseBackend::setSinkMuted(bool m)
 {
-    if (!hasSink || d->defaultSinkName.isEmpty())
+    if (!hasSink)
         return;
+    /* defaultSinkName is written on the PA thread; read it under the lock. */
     pa_threaded_mainloop_lock(d->loop);
+    if (d->defaultSinkName.isEmpty()) {
+        pa_threaded_mainloop_unlock(d->loop);
+        return;
+    }
     pa_operation *o = pa_context_set_sink_mute_by_name(
         d->ctx, d->defaultSinkName.toUtf8().constData(), m ? 1 : 0, nullptr,
         nullptr);
@@ -208,9 +267,13 @@ void PulseBackend::setSinkMuted(bool m)
 void PulseBackend::setSourceVolume(qreal v)
 {
     v = qMax<qreal>(0, qMin<qreal>(1, v));
-    if (!hasSource || d->defaultSourceName.isEmpty())
+    if (!hasSource)
         return;
     pa_threaded_mainloop_lock(d->loop);
+    if (d->defaultSourceName.isEmpty()) {
+        pa_threaded_mainloop_unlock(d->loop);
+        return;
+    }
     pa_cvolume cv;
     pa_cvolume_set(&cv, d->sourceChannels,
                    (pa_volume_t)qRound64(v * PA_VOLUME_NORM));
@@ -226,9 +289,13 @@ void PulseBackend::setSourceVolume(qreal v)
 
 void PulseBackend::setSourceMuted(bool m)
 {
-    if (!hasSource || d->defaultSourceName.isEmpty())
+    if (!hasSource)
         return;
     pa_threaded_mainloop_lock(d->loop);
+    if (d->defaultSourceName.isEmpty()) {
+        pa_threaded_mainloop_unlock(d->loop);
+        return;
+    }
     pa_operation *o = pa_context_set_source_mute_by_name(
         d->ctx, d->defaultSourceName.toUtf8().constData(), m ? 1 : 0, nullptr,
         nullptr);

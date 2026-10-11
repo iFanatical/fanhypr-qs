@@ -61,6 +61,10 @@ bool IpcServer::listen()
     if (serverRunning())
         return false;
     QLocalServer::removeServer(path); /* stale socket */
+    /* Owner-only. $XDG_RUNTIME_DIR is already 0700, but the /tmp fallback is
+     * shared, and anyone who can connect can quit the shell, toggle the VPN,
+     * or drive the power menu. */
+    m_server.setSocketOptions(QLocalServer::UserAccessOption);
     return m_server.listen(path);
 }
 

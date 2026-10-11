@@ -5,9 +5,10 @@
  * were override-redirect X windows that took an XGrabKeyboard while open and
  * an XGrabPointer to notice outside clicks; here the protocol does both jobs:
  *
- *   focus    the surface asks for KeyboardInteractivityExclusive, so the
- *            compositor hands it the keyboard as it maps and gives focus back
- *            to whatever had it on unmap. No focus save/restore, no grabs.
+ *   focus    the surface asks for KeyboardInteractivityOnDemand plus
+ *            activate-on-show, so the compositor hands it the keyboard as it
+ *            maps and gives focus back to whatever had it on unmap -- while
+ *            still routing pointer input by geometry. No grabs.
  *   dismiss  a transparent scrim surface covers everything except the bar
  *            strip while a popup is open, and a click on it closes the popup.
  *            Popups sit on the Overlay layer and the scrim on Top, so the
@@ -42,6 +43,9 @@ public:
      * explicit position. */
     void setAnchorCentered(bool centered);
     void setPopupWidth(int w);
+    /* Re-point at a replacement anchor widget (e.g. a menu row rebuilt under
+     * an open submenu). Takes effect on the next open/relayout. */
+    void setAnchor(QWidget *anchor) { m_anchor = anchor; }
 
     virtual void openPopup();
     void closePopup();

@@ -1,8 +1,10 @@
 #include "procutil.h"
 
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QPointer>
 #include <QList>
+#include <QTimer>
 
 #include <csignal>
 #include <sys/prctl.h>
@@ -12,6 +14,15 @@
 namespace {
 QList<QPointer<QProcess>> g_helpers;
 bool g_hookInstalled = false;
+/* Set once shutdown begins, so watchers we are killing don't respawn. */
+bool g_quitting = false;
+
+/* Watcher respawn backoff: quick first retry, capped so a helper that can
+ * never start costs one attempt every half minute. */
+constexpr int restartMinMs = 1000;
+constexpr int restartMaxMs = 30000;
+/* A watcher that lived at least this long was healthy; reset the backoff. */
+constexpr qint64 healthyRunMs = 30000;
 } /* namespace */
 
 namespace ProcUtil {
@@ -41,6 +52,7 @@ void reapWithParent(QProcess *proc)
 
 void terminateAll()
 {
+    g_quitting = true;
     for (const QPointer<QProcess> &p : std::as_const(g_helpers)) {
         if (!p || p->state() == QProcess::NotRunning)
             continue;
@@ -92,17 +104,47 @@ BlockWatchProcess::BlockWatchProcess(const QStringList &cmd,
     ProcUtil::reapWithParent(&m_proc);
     connect(&m_proc, &QProcess::readyReadStandardOutput, this,
             &BlockWatchProcess::onReadyRead);
+
+    /* A watcher's job is to run for the life of the shell. If it exits on its
+     * own -- NetworkManager restarted under `nmcli monitor`, wl-paste lost
+     * its compositor connection -- bring it back rather than leave the
+     * widget frozen on its last state. */
+    m_restart.setSingleShot(true);
+    connect(&m_restart, &QTimer::timeout, this, &BlockWatchProcess::start);
+    connect(&m_proc, &QProcess::finished, this,
+            &BlockWatchProcess::scheduleRestart);
+    connect(&m_proc, &QProcess::errorOccurred, this,
+            [this](QProcess::ProcessError e) {
+                if (e == QProcess::FailedToStart)
+                    scheduleRestart();
+            });
 }
 
 void BlockWatchProcess::start()
 {
+    m_wanted = true;
+    m_restart.stop();
     if (m_cmd.isEmpty() || m_proc.state() != QProcess::NotRunning)
         return;
+    m_buf.clear();
+    m_startedAt = QDateTime::currentMSecsSinceEpoch();
     m_proc.start(m_cmd.first(), m_cmd.mid(1));
+}
+
+void BlockWatchProcess::scheduleRestart()
+{
+    if (!m_wanted || g_quitting || m_restart.isActive())
+        return;
+    if (QDateTime::currentMSecsSinceEpoch() - m_startedAt >= healthyRunMs)
+        m_backoffMs = restartMinMs;
+    m_restart.start(m_backoffMs);
+    m_backoffMs = qMin(m_backoffMs * 2, restartMaxMs);
 }
 
 void BlockWatchProcess::stop()
 {
+    m_wanted = false;
+    m_restart.stop();
     if (m_proc.state() == QProcess::NotRunning)
         return;
     const qint64 pid = m_proc.processId();

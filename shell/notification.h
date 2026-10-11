@@ -58,6 +58,8 @@ public:
     void dismiss(uint id, uint reason = 2);
     void clearAll();
     void activate(uint id);
+    /* A non-default action button on a visible toast. */
+    void invokeAction(uint id, const QString &key);
 
 public slots:
     Q_SCRIPTABLE QStringList GetCapabilities();

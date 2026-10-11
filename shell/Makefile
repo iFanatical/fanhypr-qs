@@ -18,7 +18,7 @@ XEMBED_PKGS = x11 xcomposite xdamage xfixes
 HAVE_XEMBED = $(shell pkg-config --exists $(XEMBED_PKGS) && echo 1)
 ifeq ($(HAVE_XEMBED),1)
 PKGS     += $(XEMBED_PKGS)
-CXXFLAGS += -DFANHYPR_QS_HAVE_XEMBED
+override CXXFLAGS += -DFANHYPR_QS_HAVE_XEMBED
 endif
 
 # layer-shell-qt ships CMake config files, not a .pc, so it is found by hand.
@@ -33,9 +33,11 @@ LSQT_LIBS  ?= -lLayerShellQtInterface
 
 CXX      ?= g++
 MOC      ?= $(shell pkg-config --variable=libexecdir Qt6Core)/moc
-CXXFLAGS += -std=c++17 -O2 -Wall -fPIC $(shell pkg-config --cflags $(PKGS)) \
-            $(LSQT_CFLAGS)
-LDLIBS    = $(shell pkg-config --libs $(PKGS)) $(LSQT_LIBS)
+# `override` so `make CXXFLAGS=-g` (or LDLIBS=...) adds to the required flags
+# instead of replacing them -- a plain += is discarded for command-line vars.
+override CXXFLAGS += -std=c++17 -O2 -Wall -fPIC \
+                     $(shell pkg-config --cflags $(PKGS)) $(LSQT_CFLAGS)
+override LDLIBS   += $(shell pkg-config --libs $(PKGS)) $(LSQT_LIBS)
 
 MODULES  = widgets popup wlutil procutil hypripc hyprstate calendar pills \
            panel network bluetooth volume tray traymenu desktopentry \

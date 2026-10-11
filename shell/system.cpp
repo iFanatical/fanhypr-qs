@@ -223,7 +223,7 @@ private:
 
 /* A ShellButton that arms on the first click (label -> "Confirm?", accent
  * border) and only fires on a second click within 4s, else reverts. Used for
- * the two destructive power actions; no Q_OBJECT/moc needed since it adds no
+ * the session-ending power actions; no Q_OBJECT/moc needed since it adds no
  * new signals, matching the plain-callback row-widget idiom used elsewhere
  * (e.g. ClipRow in clipboard.cpp). */
 class ConfirmButton : public ShellButton {
@@ -438,7 +438,9 @@ SystemPopup::SystemPopup(QWidget *anchor) : ContentPopup(anchor, 360)
     r1->setSpacing(Theme::rowSpacing);
     auto *lockBtn = new ShellButton(QStringLiteral("Lock"), row1);
     auto *sleepBtn = new ShellButton(QStringLiteral("Sleep"), row1);
-    auto *logoutBtn = new ShellButton(QStringLiteral("Log Out"), row1);
+    /* Ends the session (and any unsaved work in it): confirm, as the Fanos
+     * menu does. */
+    auto *logoutBtn = new ConfirmButton(QStringLiteral("Log Out"), row1);
     r1->addStretch(1);
     r1->addWidget(lockBtn);
     r1->addWidget(sleepBtn);
@@ -454,10 +456,10 @@ SystemPopup::SystemPopup(QWidget *anchor) : ContentPopup(anchor, 360)
         power({"suspend"});
         closePopup();
     });
-    connect(logoutBtn, &ShellButton::activated, this, [this]() {
+    logoutBtn->confirmed = [this]() {
         power({"logout"});
         closePopup();
-    });
+    };
 
     auto *row2 = new QWidget(body());
     auto *r2 = new QHBoxLayout(row2);

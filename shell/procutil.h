@@ -1,6 +1,7 @@
 /* QProcess helpers for the script bridges:
  *   CollectorProcess — Process + StdioCollector (run, buffer stdout, emit)
- *   BlockWatchProcess — Process + SplitParser (long-lived, "\n\n" blocks)
+ *   BlockWatchProcess — Process + SplitParser (long-lived, "\n\n" blocks,
+ *                       respawned with backoff if it exits on its own)
  *
  * Both reap: every helper gets its own process group plus PR_SET_PDEATHSIG.
  * Clean shutdown signals the whole group, while PDEATHSIG reaches the group
@@ -15,6 +16,7 @@
 #include <QObject>
 #include <QProcess>
 #include <QStringList>
+#include <QTimer>
 
 namespace ProcUtil {
 /* Apply the die-with-parent child setup to a QProcess. */
@@ -60,11 +62,17 @@ signals:
 
 private:
     void onReadyRead();
+    void scheduleRestart();
 
     QProcess m_proc;
     QStringList m_cmd;
     QByteArray m_marker;
     QByteArray m_buf;
+    /* Restarted with backoff if it exits while still wanted. */
+    QTimer m_restart;
+    bool m_wanted = false;
+    int m_backoffMs = 1000;
+    qint64 m_startedAt = 0;
 };
 
 #endif

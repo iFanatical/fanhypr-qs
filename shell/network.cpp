@@ -177,10 +177,20 @@ void NetworkState::wifiScan()
 
 void NetworkState::wifiConnect(const QString &ssid_, const QString &pw)
 {
-    if (!pw.isEmpty())
-        action({QStringLiteral("wifi-connect"), ssid_, pw});
-    else
+    if (pw.isEmpty()) {
         action({QStringLiteral("wifi-connect"), ssid_});
+        return;
+    }
+    /* The password goes over stdin, never argv: a command line is readable by
+     * every local process through /proc/<pid>/cmdline for as long as the
+     * helper (and nmcli under it) runs. */
+    if (m_action.state() != QProcess::NotRunning)
+        return;
+    m_action.start(QStringLiteral("fanhypr-qs-net"),
+                   {QStringLiteral("wifi-connect"), ssid_,
+                    QStringLiteral("--password-stdin")});
+    m_action.write(pw.toUtf8() + '\n');
+    m_action.closeWriteChannel();
 }
 
 void NetworkState::wifiDisconnect() { action({QStringLiteral("wifi-disconnect")}); }

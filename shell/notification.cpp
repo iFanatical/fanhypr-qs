@@ -21,6 +21,7 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QRadialGradient>
+#include <QRegularExpression>
 #include <QScreen>
 #include <QStandardPaths>
 #include <QTextDocumentFragment>
@@ -53,10 +54,27 @@ constexpr int closeRadius = 9;
 constexpr int rightColumnWidth = 68;
 constexpr int notificationImageSize = 56;
 constexpr int toastShadowRange = 4;
+/* Largest notification image (image-data hint) we will decode. */
+constexpr int maxImageSide = 4096;
+/* Non-default actions become a row of buttons along the bottom of a toast. */
+constexpr int actionHeight = 24;
+constexpr int actionGap = 6;
+constexpr int maxActionButtons = 3;
 
-QString plainText(const QString &text)
+/* Bodies may carry the spec's small markup subset (we advertise body-markup),
+ * but plenty of senders ignore capabilities and send plain text. Only run the
+ * HTML parser when the body actually looks like markup -- otherwise it would
+ * eat "a < b" and collapse whitespace -- and keep newlines as line breaks
+ * either way, as other notification daemons do. */
+QString bodyText(const QString &body)
 {
-    return QTextDocumentFragment::fromHtml(text).toPlainText();
+    static const QRegularExpression markup(
+        QStringLiteral("<[A-Za-z/!]|&(#[0-9]+|#x[0-9A-Fa-f]+|[A-Za-z]+);"));
+    if (!body.contains(markup))
+        return body;
+    QString html = body;
+    html.replace(QLatin1Char('\n'), QLatin1String("<br>"));
+    return QTextDocumentFragment::fromHtml(html).toPlainText();
 }
 
 QVariant unbox(QVariant v)
@@ -109,12 +127,21 @@ QImage imageFromHints(const QVariantMap &hints)
     arg.beginStructure();
     arg >> width >> height >> rowstride >> alpha >> bits >> channels >> bytes;
     arg.endStructure();
-    if (width <= 0 || height <= 0 || rowstride <= 0 || bits != 8
+    /* Every field is sender-controlled. Bound the dimensions, make each row
+     * hold a full line of pixels, and check the buffer in 64-bit arithmetic
+     * so an oversized header cannot overflow its way past the size test. */
+    if (width <= 0 || height <= 0 || width > maxImageSide
+            || height > maxImageSide || bits != 8
             || (channels != 3 && channels != 4)
-            || bytes.size() < rowstride * height)
+            || qint64(rowstride) < qint64(width) * channels
+            || qint64(bytes.size()) < qint64(rowstride) * height)
         return QImage();
-    const QImage::Format format = alpha ? QImage::Format_RGBA8888
-                                        : QImage::Format_RGB888;
+    /* The pixel layout follows channels; the alpha flag only says whether
+     * the fourth byte means anything. */
+    const QImage::Format format =
+        channels == 3 ? QImage::Format_RGB888
+                      : (alpha ? QImage::Format_RGBA8888
+                               : QImage::Format_RGBX8888);
     return QImage(reinterpret_cast<const uchar *>(bytes.constData()), width,
                   height, rowstride, format).copy();
 }
@@ -122,6 +149,46 @@ QImage imageFromHints(const QVariantMap &hints)
 QString timestampText(const Notification &n)
 {
     return QLocale().toString(n.receivedAt.time(), QLocale::ShortFormat);
+}
+
+struct ActionButton {
+    QString key;
+    QString label;
+    QRect rect;
+};
+
+/* The sender's non-default actions, laid out across the bottom of a toast
+ * card. History rows get none: once a toast has closed its actions are no
+ * longer valid to invoke. */
+QVector<ActionButton> actionButtons(const Notification &n, const QRect &card)
+{
+    QVector<ActionButton> out;
+    for (int i = 0; i + 1 < n.actions.size()
+                    && out.size() < maxActionButtons; i += 2) {
+        if (n.actions[i] == QLatin1String("default"))
+            continue;
+        const QString label = n.actions[i + 1].trimmed();
+        out.push_back({n.actions[i],
+                       label.isEmpty() ? n.actions[i] : label, QRect()});
+    }
+    if (out.isEmpty())
+        return out;
+    const int left = card.left() + toastPadding;
+    const int width = card.width() - toastPadding * 2;
+    const int each = (width - actionGap * (out.size() - 1)) / out.size();
+    const int top = card.bottom() + 1 - toastPadding - actionHeight;
+    for (int i = 0; i < out.size(); ++i)
+        out[i].rect = QRect(left + i * (each + actionGap), top, each,
+                            actionHeight);
+    return out;
+}
+
+bool hasActionButtons(const Notification &n)
+{
+    for (int i = 0; i + 1 < n.actions.size(); i += 2)
+        if (n.actions[i] != QLatin1String("default"))
+            return true;
+    return false;
 }
 
 /* Shared row geometry for the toast stack and history view. */
@@ -141,12 +208,15 @@ int rowHeight(const Notification &n, int width, bool history = false)
                            + (n.body.isEmpty() ? 0 : 4 + body.height());
     const int sideHeight = toastPadding * 2 + Theme::tinyFontSize + 4
                            + (n.image.isNull() ? 0 : notificationImageSize);
-    const int content = qMax(64, qMax(textHeight, sideHeight));
+    const int actions =
+        (!history && hasActionButtons(n)) ? actionHeight + actionGap : 0;
+    const int content = qMax(64, qMax(textHeight, sideHeight)) + actions;
     return content + (history ? 0 : closeOverhang + toastShadowRange);
 }
 
 void paintNotification(QPainter &p, const Notification &n, const QRect &outer,
-                       bool hovered, bool history, bool closeHovered = false)
+                       bool hovered, bool history, bool closeHovered = false,
+                       const QString &hoveredAction = QString())
 {
     /* Toasts reserve space above the card for a macOS-style close circle
      * straddling its top edge. History rows stay inside their popup and do
@@ -195,11 +265,30 @@ void paintNotification(QPainter &p, const Notification &n, const QRect &outer,
         QRect(x, y, textWidth, 1000), Qt::TextWordWrap, n.summary);
     p.drawText(titleRect, Qt::TextWordWrap, n.summary);
     y = titleRect.bottom() + 5;
+    const QVector<ActionButton> buttons =
+        history ? QVector<ActionButton>() : actionButtons(n, card);
+    const int textBottom = buttons.isEmpty()
+                               ? card.bottom() + 1 - toastPadding
+                               : buttons.first().rect.top() - actionGap;
     if (!n.body.isEmpty()) {
         p.setFont(Theme::font(Theme::smallFontSize));
         p.setPen(n.foreground);
-        p.drawText(QRect(x, y, textWidth, card.bottom() - y - toastPadding + 1),
+        p.drawText(QRect(x, y, textWidth, textBottom - y),
                    Qt::TextWordWrap, n.body);
+    }
+    if (!buttons.isEmpty()) {
+        p.setFont(Theme::font(Theme::smallFontSize, true));
+        const QFontMetrics fm(p.font());
+        for (const ActionButton &b : buttons) {
+            const bool hot = b.key == hoveredAction;
+            Theme::paintRect(p, b.rect,
+                             hot ? Theme::surfaceHover : Theme::surface,
+                             Theme::smallRadius, border, 1);
+            p.setPen(hot ? Theme::textStrong : Theme::text);
+            p.drawText(b.rect, Qt::AlignCenter,
+                       fm.elidedText(b.label, Qt::ElideRight,
+                                     b.rect.width() - 8));
+        }
     }
 
     p.setFont(Theme::font(Theme::tinyFontSize));
@@ -349,7 +438,8 @@ protected:
             const int h = rowHeight(*n, width());
             paintNotification(p, *n, QRect(0, y, width(), h),
                               id == m_hovered, false,
-                              id == m_hovered && m_closeHovered);
+                              id == m_hovered && m_closeHovered,
+                              id == m_hovered ? m_hoveredAction : QString());
             y += h + toastGap;
         }
     }
@@ -358,6 +448,7 @@ protected:
     {
         const uint next = idAt(e->pos());
         bool close = false;
+        QString action;
         if (next) {
             const QRect card = rectFor(next).adjusted(
                 toastShadowRange, closeOverhang, -toastShadowRange,
@@ -366,12 +457,18 @@ protected:
             const QPoint delta = e->pos() - center;
             close = delta.x() * delta.x() + delta.y() * delta.y()
                     <= closeRadius * closeRadius;
+            if (!close)
+                action = actionAt(next, card, e->pos());
         }
-        if (m_hovered != next || m_closeHovered != close) {
+        if (m_hovered != next || m_closeHovered != close
+                || m_hoveredAction != action) {
+            if (m_hovered != next)
+                m_service->setHovered(next);
             m_hovered = next;
             m_closeHovered = close;
-            m_service->setHovered(next);
-            setCursor(close ? Qt::PointingHandCursor : Qt::ArrowCursor);
+            m_hoveredAction = action;
+            setCursor((close || !action.isEmpty()) ? Qt::PointingHandCursor
+                                                   : Qt::ArrowCursor);
             update();
         }
     }
@@ -380,6 +477,7 @@ protected:
     {
         m_hovered = 0;
         m_closeHovered = false;
+        m_hoveredAction.clear();
         m_service->setHovered(0);
         setCursor(Qt::ArrowCursor);
         update();
@@ -399,8 +497,13 @@ protected:
         const QPoint closeCenter(card.left() + closeRadius + 7, card.top());
         const QPoint delta = e->pos() - closeCenter;
         if (delta.x() * delta.x() + delta.y() * delta.y()
-                <= closeRadius * closeRadius)
+                <= closeRadius * closeRadius) {
             m_service->dismiss(id);
+            return;
+        }
+        const QString action = actionAt(id, card, e->pos());
+        if (!action.isEmpty())
+            m_service->invokeAction(id, action);
         else
             m_service->activate(id);
     }
@@ -413,6 +516,17 @@ protected:
     }
 
 private:
+    QString actionAt(uint id, const QRect &card, const QPoint &pos) const
+    {
+        const Notification *n = m_service->find(id);
+        if (!n)
+            return QString();
+        for (const ActionButton &b : actionButtons(*n, card))
+            if (b.rect.contains(pos))
+                return b.key;
+        return QString();
+    }
+
     QRect rectFor(uint wanted) const
     {
         int y = -m_scroll;
@@ -441,6 +555,7 @@ private:
     QScreen *m_screen = nullptr;
     uint m_hovered = 0;
     bool m_closeHovered = false;
+    QString m_hoveredAction;
     int m_totalHeight = 0;
     int m_scroll = 0;
     bool m_configured = false;
@@ -614,6 +729,7 @@ bool NotificationService::start()
 QStringList NotificationService::GetCapabilities()
 {
     return {QStringLiteral("actions"), QStringLiteral("body"),
+            QStringLiteral("body-markup"),
             QStringLiteral("icon-static"), QStringLiteral("persistence")};
 }
 
@@ -650,7 +766,7 @@ uint NotificationService::Notify(const QString &appName, uint replacesId,
     if (m_nextId == 0)
         m_nextId = 1;
     if (osd->showNotification(
-            candidateId, appName, plainText(summary), plainText(body), hints,
+            candidateId, appName, summary, bodyText(body), hints,
             urgency))
         return candidateId;
 
@@ -658,8 +774,8 @@ uint NotificationService::Notify(const QString &appName, uint replacesId,
     n.id = replaceAt >= 0 ? replacesId : candidateId;
     n.appName = appName;
     n.appIcon = appIcon;
-    n.summary = plainText(summary);
-    n.body = plainText(body);
+    n.summary = summary; /* plain text by spec */
+    n.body = bodyText(body);
     n.actions = actions;
     n.hints = hints;
     n.icon = resolveIcon(appIcon);
@@ -784,6 +900,13 @@ void NotificationService::activate(uint id)
     if (!ptr)
         return;
     const Notification n = *ptr;
+    /* A closed notification's actions are dead: NotificationClosed has
+     * already been sent, so the sender may have dropped its handlers. From
+     * history, just bring the sender forward. */
+    if (!n.visible) {
+        focusCertainSender(n);
+        return;
+    }
     bool invoked = false;
     for (int i = 0; i + 1 < n.actions.size(); i += 2) {
         if (n.actions[i] == QLatin1String("default")) {
@@ -794,6 +917,20 @@ void NotificationService::activate(uint id)
     }
     if (!invoked)
         focusCertainSender(n);
+    dismiss(id, 2);
+}
+
+void NotificationService::invokeAction(uint id, const QString &key)
+{
+    const Notification *n = find(id);
+    if (!n || !n->visible)
+        return;
+    bool known = false;
+    for (int i = 0; i + 1 < n->actions.size(); i += 2)
+        known = known || n->actions[i] == key;
+    if (!known)
+        return;
+    emit ActionInvoked(id, key);
     dismiss(id, 2);
 }
 

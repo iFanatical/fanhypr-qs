@@ -5,6 +5,7 @@
 #include <QProcess>
 #include <QRegularExpression>
 #include <QStandardPaths>
+#include <QTimer>
 
 #include <memory>
 
@@ -15,6 +16,10 @@
 namespace {
 
 constexpr int audioStep = 5;
+/* brightnessctl answers instantly; ddcutil over a slow I2C bus can take a
+ * few seconds. Anything past this is wedged, and must not leave the busy
+ * flag set forever with every later key press silently queued behind it. */
+constexpr int helperTimeoutMs = 15000;
 
 int percentFromBrightnessctl(const QByteArray &output)
 {
@@ -397,5 +402,10 @@ void HardwareControls::run(
                 if (error == QProcess::FailedToStart)
                     finish(-1);
             });
+    /* kill() makes finished() fire with CrashExit, which reports -1. */
+    QTimer::singleShot(helperTimeoutMs, process, [process]() {
+        if (process->state() != QProcess::NotRunning)
+            process->kill();
+    });
     process->start(program, arguments);
 }

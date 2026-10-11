@@ -63,7 +63,8 @@ inline const char *const fontFamily = "JetBrainsMono Nerd Font Propo";
 inline constexpr int workspacesPerMonitor = 5;
 
 inline constexpr int panelHeight         = 28;
-/* Background only; matches Alacritty's window.opacity = 0.80. */
+/* Background only. 204 (the line below) matches Alacritty's
+ * window.opacity = 0.80. */
 /*inline constexpr int panelOpacity        = 204; 0 transparent .. 255 opaque */
 inline constexpr int panelOpacity        = 255; /* 0 transparent .. 255 opaque */
 inline constexpr int panelPadding        = 8;

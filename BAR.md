@@ -229,6 +229,19 @@ one widget hide itself or show defaults.
   switches tunnels. A
   confirmed change shows a temporary shield confirmation on the tray output;
   failures become critical notifications.
+
+  Scope the sudo rule to the exact tunnel commands. A bare `wg-quick` rule is
+  root for anything running as you: `wg-quick up ./any.conf` runs that file's
+  `PostUp` hooks as root. In `visudo -f /etc/sudoers.d/fanhypr-qs`, one pair
+  per tunnel (check the path with `command -v wg-quick`):
+
+  ```
+  you ALL=(root) NOPASSWD: /usr/bin/wg-quick up tun1, /usr/bin/wg-quick down tun1
+  ```
+
+  The ip-backend network popup's link Up/Down and Re-apply buttons likewise
+  need `sudo -n`; list the interfaces you want (`/usr/bin/ip link set br0 up`,
+  …) and `net-bridge.sh` by full path rather than allowing `ip` outright.
 - **Battery** — none; reads `/sys/class/power_supply/BAT*` directly. Override
   with `$FANHYPR_QS_BATTERY_PATH`.
 - **CPU/Memory/Temperature** (System dropdown) — `free`; temperature needs a

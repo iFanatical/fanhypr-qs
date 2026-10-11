@@ -182,7 +182,12 @@ int main(int argc, char *argv[])
                 []() { WallpaperPicker::instance()->openPicker(); });
     ipc->handle(QStringLiteral("wallpaper"), QStringLiteral("hide"),
                 []() { WallpaperPicker::instance()->hidePicker(); });
-    ipc->listen();
+    if (!ipc->listen())
+        fprintf(stderr,
+                "fanhypr-qs-shell: cannot listen on %s -- another instance "
+                "may own it; `ipc call` will reach that one, not this one. "
+                "Start with --no-duplicate to avoid running twice.\n",
+                qPrintable(IpcServer::socketPath()));
 
     return app.exec();
 }

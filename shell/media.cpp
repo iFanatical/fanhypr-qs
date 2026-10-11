@@ -3,7 +3,6 @@
 #include <QDBusArgument>
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
-#include <QDBusInterface>
 #include <QDBusMessage>
 #include <QDBusPendingCallWatcher>
 #include <QDBusPendingReply>
@@ -114,17 +113,30 @@ void MediaControls::serviceOwnerChanged(const QString &name,
 
 void MediaControls::refresh(const QString &service)
 {
-    if (QDBusConnectionInterface *bus =
-            QDBusConnection::sessionBus().interface()) {
-        const QDBusReply<QString> owner = bus->serviceOwner(service);
-        if (owner.isValid())
-            m_ownerServices.insert(owner.value(), service);
-    }
-    QDBusInterface properties(service, objectPath, propertiesInterface,
-                              QDBusConnection::sessionBus());
-    QDBusPendingCall call = properties.asyncCall(
-        QStringLiteral("GetAll"), playerInterface);
-    auto *watcher = new QDBusPendingCallWatcher(call, this);
+    /* Everything here is asynchronous. QDBusInterface would introspect the
+     * player synchronously on construction, and a wedged browser can hold
+     * such a call for the full 25 s D-Bus timeout -- freezing the bar. */
+    QDBusConnection bus = QDBusConnection::sessionBus();
+
+    QDBusMessage ownerMsg = QDBusMessage::createMethodCall(
+        QStringLiteral("org.freedesktop.DBus"),
+        QStringLiteral("/org/freedesktop/DBus"),
+        QStringLiteral("org.freedesktop.DBus"), QStringLiteral("GetNameOwner"));
+    ownerMsg << service;
+    auto *ownerWatcher =
+        new QDBusPendingCallWatcher(bus.asyncCall(ownerMsg), this);
+    connect(ownerWatcher, &QDBusPendingCallWatcher::finished, this,
+            [this, service, ownerWatcher]() {
+                QDBusPendingReply<QString> owner = *ownerWatcher;
+                ownerWatcher->deleteLater();
+                if (owner.isValid())
+                    m_ownerServices.insert(owner.value(), service);
+            });
+
+    QDBusMessage msg = QDBusMessage::createMethodCall(
+        service, objectPath, propertiesInterface, QStringLiteral("GetAll"));
+    msg << playerInterface;
+    auto *watcher = new QDBusPendingCallWatcher(bus.asyncCall(msg), this);
     connect(watcher, &QDBusPendingCallWatcher::finished, this,
             [this, service, watcher]() {
                 QDBusPendingReply<QVariantMap> reply = *watcher;
@@ -245,9 +257,8 @@ void MediaControls::invoke(Action action)
         m_pending.serial = ++m_transitionSerial;
     }
 
-    QDBusInterface player(service, objectPath, playerInterface,
-                          QDBusConnection::sessionBus());
-    player.asyncCall(actionMethod(action));
+    QDBusConnection::sessionBus().asyncCall(QDBusMessage::createMethodCall(
+        service, objectPath, playerInterface, actionMethod(action)));
 
     if (action != Action::PlayPause)
         pollTrackChange(service, m_pending.serial, 0);

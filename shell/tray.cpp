@@ -13,6 +13,7 @@
 #include <QDirIterator>
 #include <QEnterEvent>
 #include <QHBoxLayout>
+#include <QHash>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QtEndian>
@@ -23,6 +24,9 @@ static const char *kSniIface = "org.kde.StatusNotifierItem";
 static const char *kWatcherService = "org.kde.StatusNotifierWatcher";
 static const char *kWatcherPath = "/StatusNotifierWatcher";
 static const char *kWatcherIface = "org.kde.StatusNotifierWatcher";
+
+/* Largest SNI pixmap side we will decode; real ones are 16-256px. */
+constexpr int maxSniIconSide = 1024;
 
 /* Decode one a(iiay) icon-pixmap list into a QIcon. Data is ARGB32 in
  * network byte order. */
@@ -36,7 +40,11 @@ static QIcon iconFromSniPixmaps(const QDBusArgument &arg)
         arg.beginStructure();
         arg >> w >> h >> bytes;
         arg.endStructure();
-        if (w > 0 && h > 0 && bytes.size() >= w * h * 4) {
+        /* Sizes come from any client on the session bus: bound them (tray
+         * pixmaps are icon-sized) and do the arithmetic in 64 bits, so a
+         * bogus header can't overflow past the size check. */
+        if (w > 0 && h > 0 && w <= maxSniIconSide && h <= maxSniIconSide
+                && qint64(bytes.size()) >= qint64(w) * h * 4) {
             QImage img(w, h, QImage::Format_ARGB32);
             const uchar *src = reinterpret_cast<const uchar *>(bytes.constData());
             for (int y = 0; y < h; y++) {
@@ -51,22 +59,42 @@ static QIcon iconFromSniPixmaps(const QDBusArgument &arg)
     return icon;
 }
 
-/* Icon lookup for items that ship their own theme dir (IconThemePath). */
+/* Icon lookup for items that ship their own theme dir (IconThemePath).
+ *
+ * Finding the files means a recursive directory walk, and items re-announce
+ * their icon (NewIcon) whenever they like -- animated ones constantly. So the
+ * file paths are cached per (dir, name); a fresh QIcon is still built from
+ * them each time, which keeps rewritten-in-place icon files current. Only hits
+ * are cached: an app may write a new icon file just before naming it. */
 static QIcon iconFromThemePath(const QString &themePath, const QString &name)
 {
-    QIcon icon;
-    QDirIterator it(themePath, QDirIterator::Subdirectories);
-    while (it.hasNext()) {
-        const QString f = it.next();
-        const QFileInfo fi = it.fileInfo();
-        if (!fi.isFile())
-            continue;
-        if (fi.completeBaseName() == name
-                && (fi.suffix() == QLatin1String("png")
-                    || fi.suffix() == QLatin1String("svg")
-                    || fi.suffix() == QLatin1String("xpm")))
-            icon.addFile(f);
+    static QHash<QString, QStringList> cache;
+    const QString key = themePath + QLatin1Char('\n') + name;
+
+    QStringList files = cache.value(key);
+    if (files.isEmpty()) {
+        QDirIterator it(themePath, QDirIterator::Subdirectories);
+        while (it.hasNext()) {
+            const QString f = it.next();
+            const QFileInfo fi = it.fileInfo();
+            if (!fi.isFile())
+                continue;
+            if (fi.completeBaseName() == name
+                    && (fi.suffix() == QLatin1String("png")
+                        || fi.suffix() == QLatin1String("svg")
+                        || fi.suffix() == QLatin1String("xpm")))
+                files << f;
+        }
+        if (!files.isEmpty())
+            cache.insert(key, files);
     }
+
+    QIcon icon;
+    for (const QString &f : std::as_const(files))
+        if (QFileInfo::exists(f))
+            icon.addFile(f);
+    if (icon.isNull())
+        cache.remove(key); /* files went away; walk again next time */
     return icon;
 }
 

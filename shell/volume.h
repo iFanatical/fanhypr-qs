@@ -48,6 +48,9 @@ signals:
 private:
     explicit PulseBackend(QObject *parent = nullptr);
     void start();
+    void newContext();
+    /* GUI thread: the server dropped us; reset state and reconnect. */
+    void connectionLost();
 
     friend struct PulseCallbacks;
     struct Priv;

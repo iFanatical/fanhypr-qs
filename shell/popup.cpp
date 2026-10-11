@@ -290,9 +290,9 @@ void ShellPopup::hideEvent(QHideEvent *e)
     if (m_manageAsTopLevel)
         PopupManager::closed(this);
     g_stack.removeAll(this);
-    /* Keyboard focus needs no unwinding: unmapping a surface that held
-     * KeyboardInteractivityExclusive returns focus to whatever the compositor
-     * had focused before, including a popup still up beneath this one. */
+    /* Keyboard focus needs no unwinding: unmapping a surface that was handed
+     * the keyboard (OnDemand + activate-on-show) returns focus to whatever the
+     * compositor had focused before, including a popup still up beneath it. */
     bool anyVisible = false;
     for (const QPointer<ShellPopup> &p : std::as_const(g_stack))
         if (p && p->isVisible())

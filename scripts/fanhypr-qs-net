@@ -11,7 +11,7 @@
 #
 #   fanhypr-qs-net status | watch
 #   fanhypr-qs-net wifi-list | wifi-scan
-#   fanhypr-qs-net wifi-connect <ssid> [password]
+#   fanhypr-qs-net wifi-connect <ssid> [--password-stdin]
 #   fanhypr-qs-net wifi-disconnect | wifi-forget <ssid> | radio on|off
 #   fanhypr-qs-net reapply                 (ip backend: re-run net-bridge.sh)
 #   fanhypr-qs-net link-up <if> | link-down <if>
@@ -103,6 +103,60 @@ nm_wifi_list() {
 		sort -t"$TAB" -k2 -nr
 }
 
+# Security column of the visible network named $1 (SSID last, '\:'-escaped).
+nm_wifi_security() {
+	nmcli -t -f SECURITY,SSID device wifi list 2>/dev/null |
+		sed 's/\\:/\x01/g' |
+		S="$1" awk -F: '
+			{
+				ssid = $2; for (i = 3; i <= NF; i++) ssid = ssid ":" $i
+				gsub(/\x01/, ":", ssid)
+				if (ssid == ENVIRON["S"]) { print $1; exit }
+			}'
+}
+
+# Join a secured network without the password reaching any command line
+# (`nmcli device wifi connect X password Y` would put it in /proc/*/cmdline).
+# nmcli's passwd-file is read from a private file in the runtime dir instead;
+# printf is a shell builtin, so writing that file spawns no process either.
+nm_connect_secret() {
+	ssid=$1; pass=$2
+	sec=$(nm_wifi_security "$ssid")
+	case "$sec" in
+	*802.1X*) return 1 ;;	# enterprise needs an identity; not handled here
+	*WPA3*)
+		case "$sec" in
+		*WPA1* | *WPA2*) key=wpa-psk ;;	# transition mode: PSK still works
+		*) key=sae ;;
+		esac
+		prop=802-11-wireless-security.psk ;;
+	*WEP*) key=none; prop=802-11-wireless-security.wep-key0 ;;
+	*) key=wpa-psk; prop=802-11-wireless-security.psk ;;
+	esac
+
+	pwfile=$(umask 077 && mktemp "${XDG_RUNTIME_DIR:-/tmp}/fanhypr-qs-net.XXXXXX") ||
+		return 1
+	trap 'rm -f "$pwfile"' EXIT
+	printf '%s:%s\n' "$prop" "$pass" >"$pwfile"
+
+	nmcli connection up id "$ssid" passwd-file "$pwfile" >/dev/null 2>&1
+	rc=$?
+	# 10 = no such connection: first time on this network, so create the
+	# profile (without its secret) and activate it with the passwd-file.
+	if [ "$rc" -eq 10 ]; then
+		nmcli connection add type wifi con-name "$ssid" ssid "$ssid" \
+			wifi-sec.key-mgmt "$key" >/dev/null 2>&1 || return 1
+		if nmcli connection up id "$ssid" passwd-file "$pwfile" >/dev/null 2>&1; then
+			rc=0
+		else
+			# A wrong password must not leave a half-made profile behind.
+			nmcli connection delete id "$ssid" >/dev/null 2>&1
+		fi
+	fi
+	rm -f "$pwfile"
+	return "$rc"
+}
+
 # ---- iproute2 backend (custom bridge/VLAN desktop) -------------------------
 
 ip_iftype() {
@@ -166,10 +220,15 @@ wifi-list) nm_running && nm_wifi_list ;;
 wifi-scan) nm_running && nmcli device wifi rescan >/dev/null 2>&1 || true ;;
 wifi-connect)
 	nm_running || exit 0
-	ssid=${2:-}; pass=${3:-}
-	[ -n "$ssid" ] || { echo "usage: $0 wifi-connect <ssid> [password]" >&2; exit 2; }
+	ssid=${2:-}; pass=
+	[ -n "$ssid" ] || { echo "usage: $0 wifi-connect <ssid> [--password-stdin]" >&2; exit 2; }
+	# The password arrives on stdin, never as an argument: a command line is
+	# readable by every local process through /proc/<pid>/cmdline.
+	if [ "${3:-}" = "--password-stdin" ]; then
+		IFS= read -r pass || true
+	fi
 	if [ -n "$pass" ]; then
-		nmcli device wifi connect "$ssid" password "$pass" >/dev/null 2>&1 || true
+		nm_connect_secret "$ssid" "$pass" || true
 	else
 		nmcli device wifi connect "$ssid" >/dev/null 2>&1 || true
 	fi

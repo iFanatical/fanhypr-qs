@@ -94,7 +94,6 @@ QVector<LauncherItem> AppLauncher::menuItems() const
         if (!websiteItems(items)) {
         add("YouTube", "youtube.com", "url:https://youtube.com", "web-browser");
         add("Twitch", "Followed channels", "url:https://www.twitch.tv/directory/following", "web-browser");
-        add("Jellyfin", "Home media server", "url:http://jellyfin.bush.local:8096/web/#/home.html", "web-browser");
         add("X", "Home timeline", "url:https://x.com/home", "web-browser");
         add("Plex", "Web player", "url:https://app.plex.tv/desktop/#!/", "web-browser");
         add("LinkedIn", "Feed", "url:https://www.linkedin.com/feed/", "web-browser");
@@ -111,7 +110,7 @@ QVector<LauncherItem> AppLauncher::menuItems() const
         add("Shell Style", "shell/theme.h (rebuild required)", "edit:style");
     } else if (menuPage == QLatin1String("learn")) {
         add("Keybindings", "Read your active bindings", "edit:bindings", "input-keyboard");
-        add("Grok", "grok.com", "url:https://grok.com/?ref=aiartweekly", "help-browser");
+        add("Grok", "grok.com", "url:https://grok.com/", "help-browser");
         add("Hyprland", "Hyprland wiki", "url:https://wiki.hypr.land/", "help-browser");
         add("Artix", "Artix Linux wiki", "url:https://wiki.artixlinux.org/", "help-browser");
         add("Neovim", "LazyVim keymaps", "url:https://www.lazyvim.org/keymaps", "help-browser");

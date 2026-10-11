@@ -5,7 +5,8 @@
  *   fanhypr-qs-shell ipc call notifications toggle-dnd
  *   fanhypr-qs-shell ipc call media play-pause|previous|next
  *   fanhypr-qs-shell ipc call shell quit
- * A QLocalServer on $XDG_RUNTIME_DIR keyed by $DISPLAY. */
+ * A QLocalServer in $XDG_RUNTIME_DIR, keyed by $HYPRLAND_INSTANCE_SIGNATURE
+ * (falling back to $WAYLAND_DISPLAY), readable by its owner only. */
 #ifndef FANHYPR_QS_IPC_H
 #define FANHYPR_QS_IPC_H
 

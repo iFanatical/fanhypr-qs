@@ -2,8 +2,9 @@
 
 #include <QDBusArgument>
 #include <QDBusConnection>
-#include <QDBusInterface>
-#include <QDBusReply>
+#include <QDBusMessage>
+#include <QDBusPendingCallWatcher>
+#include <QDBusPendingReply>
 #include <QDBusServiceWatcher>
 #include <QDBusVariant>
 #include <QHBoxLayout>
@@ -88,22 +89,29 @@ PowerProfileState::PowerProfileState(QObject *parent) : QObject(parent)
 
 void PowerProfileState::refresh()
 {
-    QDBusInterface props(QString::fromLatin1(service), QString::fromLatin1(path),
-                         QString::fromLatin1(propertiesInterface),
-                         QDBusConnection::systemBus());
-    const QDBusReply<QVariantMap> reply =
-        props.call(QStringLiteral("GetAll"), QString::fromLatin1(interface));
-    if (!reply.isValid()) {
-        if (m_available) {
-            m_available = false;
-            m_active.clear();
-            m_profiles.clear();
-            emit changed();
-        }
-        return;
-    }
-    m_available = true;
-    applyProperties(reply.value());
+    /* Asynchronous: at login the provider may still be D-Bus-activating, and
+     * a blocking call would hold up the whole shell until it answers. */
+    QDBusMessage msg = QDBusMessage::createMethodCall(
+        QString::fromLatin1(service), QString::fromLatin1(path),
+        QString::fromLatin1(propertiesInterface), QStringLiteral("GetAll"));
+    msg << QString::fromLatin1(interface);
+    auto *watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::systemBus().asyncCall(msg), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished, this,
+            [this, watcher]() {
+                QDBusPendingReply<QVariantMap> reply = *watcher;
+                watcher->deleteLater();
+                if (!reply.isValid()) {
+                    if (m_available) {
+                        m_available = false;
+                        m_active.clear();
+                        m_profiles.clear();
+                        emit changed();
+                    }
+                    return;
+                }
+                applyProperties(reply.value());
+            });
 }
 
 void PowerProfileState::applyProperties(const QVariantMap &properties)
@@ -140,12 +148,12 @@ void PowerProfileState::setProfile(const QString &profile)
 {
     if (!m_available || !m_profiles.contains(profile))
         return;
-    QDBusInterface props(QString::fromLatin1(service), QString::fromLatin1(path),
-                         QString::fromLatin1(propertiesInterface),
-                         QDBusConnection::systemBus());
-    props.asyncCall(QStringLiteral("Set"), QString::fromLatin1(interface),
-                    QStringLiteral("ActiveProfile"),
-                    QVariant::fromValue(QDBusVariant(profile)));
+    QDBusMessage msg = QDBusMessage::createMethodCall(
+        QString::fromLatin1(service), QString::fromLatin1(path),
+        QString::fromLatin1(propertiesInterface), QStringLiteral("Set"));
+    msg << QString::fromLatin1(interface) << QStringLiteral("ActiveProfile")
+        << QVariant::fromValue(QDBusVariant(profile));
+    QDBusConnection::systemBus().asyncCall(msg);
 }
 
 PowerProfileWidget::PowerProfileWidget(QWidget *parent) : QWidget(parent)

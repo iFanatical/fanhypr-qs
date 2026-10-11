@@ -40,6 +40,7 @@ void BluetoothState::setPolling(bool enabled)
 
 void BluetoothState::parse(const QString &block)
 {
+    const bool oldPowered = powered, oldDiscovering = discovering;
     const QStringList lines = block.trimmed().split('\n');
     QVector<Device> devs;
     for (const QString &line : lines) {
@@ -60,6 +61,22 @@ void BluetoothState::parse(const QString &block)
                 discovering = (v == QLatin1String("yes"));
         }
     }
+    /* The watcher repeats its status every few seconds. Rebuilding the
+     * popup's rows each time would recreate the button under the cursor and
+     * drop a click that straddles the rebuild, so only report real changes. */
+    auto sameDevices = [](const QVector<Device> &a, const QVector<Device> &b) {
+        if (a.size() != b.size())
+            return false;
+        for (int i = 0; i < a.size(); ++i)
+            if (a[i].mac != b[i].mac || a[i].name != b[i].name
+                    || a[i].connected != b[i].connected
+                    || a[i].paired != b[i].paired)
+                return false;
+        return true;
+    };
+    if (powered == oldPowered && discovering == oldDiscovering
+            && sameDevices(devices, devs))
+        return;
     devices = devs;
     emit changed();
 }

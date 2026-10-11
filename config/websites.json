@@ -1,7 +1,6 @@
 [
   {"name": "YouTube", "url": "https://youtube.com", "icon": "youtube"},
   {"name": "Twitch", "url": "https://www.twitch.tv/directory/following", "icon": "twitch"},
-  {"name": "Jellyfin", "url": "http://jellyfin.bush.local:8096/web/#/home.html", "icon": "jellyfin"},
   {"name": "X", "url": "https://x.com/home", "icon": "twitter"},
   {"name": "Plex", "url": "https://app.plex.tv/desktop/#!/", "icon": "plex"},
   {"name": "LinkedIn", "url": "https://www.linkedin.com/feed/", "icon": "linkedin"},
