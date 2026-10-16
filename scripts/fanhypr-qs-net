@@ -198,10 +198,15 @@ watch() {
 	if [ "$b" = nm ]; then nm_status; else ip_status; fi
 	printf '\n'
 	if [ "$b" = nm ]; then
+		# In the background and waited on: sh runs a trap only once the
+		# foreground command returns, and `nmcli monitor` never does, so a
+		# foreground pipeline here left the trap -- and nmcli -- running for
+		# ever after the shell died. `wait` returns as soon as a signal comes.
 		nmcli monitor 2>/dev/null | while IFS= read -r _line; do
 			nm_status
 			printf '\n'
-		done
+		done &
+		wait
 	else
 		while :; do
 			sleep 3
