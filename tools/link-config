@@ -1,0 +1,32 @@
+#!/bin/sh
+# Link the Hyprland session in config/ into $HOME. The shell's own config
+# files (alacritty.toml, websites.json, ...) are linked by fanshell-qs's
+# link-config.
+#
+#   tools/link-config            create or repair the links
+#   tools/link-config --dry-run  show what would change
+#
+# Links point at this checkout, wherever it lives, so the same command sets
+# up any machine. A real file in the way is moved aside to NAME.bak-DATE
+# first; a link that already points here is left alone, so running it again
+# is harmless. The linking itself is fanshell-qs's tools/lib.sh, from the
+# checkout beside this one (or $FANSHELL_QS_DIR).
+set -eu
+
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+shell_dir=${FANSHELL_QS_DIR:-"$repo/../fanshell-qs"}
+if [ ! -f "$shell_dir/tools/lib.sh" ]; then
+    printf 'error: fanshell-qs not found at %s; clone it there or set FANSHELL_QS_DIR\n' \
+        "$shell_dir" >&2
+    exit 1
+fi
+. "$shell_dir/tools/lib.sh"
+parse_dry_run "$@"
+
+config_dir="$repo/config"
+config_home=${XDG_CONFIG_HOME:-$HOME/.config}
+
+# The whole directory, so hyprland.lua can require its sibling modules.
+link "$config_dir/hypr" "$config_home/hypr"
+link "$config_dir/xdg-desktop-portal/hyprland-portals.conf" \
+    "$config_home/xdg-desktop-portal/hyprland-portals.conf"

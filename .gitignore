@@ -6,8 +6,3 @@
 /TITLE_EVENT_POWER_REVIEW.md
 /GRACEFUL_RESTART_REVIEW.md
 /JELLYFIN_MPRIS_REVIEW.md
-
-# Build output
-*.o
-/shell/fanhypr-qs-shell
-/shell/moc_*.cpp

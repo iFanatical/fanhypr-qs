@@ -9,6 +9,6 @@ hl.env("GTK_THEME", "Tokyo-Night")
 hl.env("TERMINAL", "alacritty")
 hl.env("GDK_SCALE", "1")
 hl.env("QT_SCALE_FACTOR", "1")
-hl.env("FANHYPR_QS_WALLPAPER_TRANSITION", "wipe")
-hl.env("FANHYPR_QS_UPS_HOST", "10.1.0.10")
-hl.env("FANHYPR_QS_UPS_COMMUNITY", "public")
+
+-- The shell's own settings (VPN tunnels, UPS, wallpaper) are in
+-- ~/.config/fanshell-qs/shell.conf, the same under every window manager.

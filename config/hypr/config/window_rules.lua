@@ -301,12 +301,12 @@ hl.window_rule ({
     center = 1,
 })
 hl.layer_rule({
-    match = { namespace = "fanhypr-qs-notifications" },
+    match = { namespace = "fanshell-qs-notifications" },
     blur = true,
     ignore_alpha = 0.1,
 })
 hl.layer_rule({
-    match = { namespace = "fanhypr-qs-osd" },
+    match = { namespace = "fanshell-qs-osd" },
     blur = true,
     ignore_alpha = 0.1,
 })

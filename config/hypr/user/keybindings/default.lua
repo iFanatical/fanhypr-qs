@@ -40,11 +40,15 @@ hl.bind("ALT + SHIFT + V", hl.dsp.exec_cmd(shell .. "vpn tun2 toggle"))
 hl.bind("ALT + N", hl.dsp.exec_cmd(shell .. "notifications toggle-dnd"))
 hl.bind(mod .. " + W", hl.dsp.exec_cmd(shell .. "wallpaper toggle"))
 hl.bind(mod .. " + Semicolon", hl.dsp.exec_cmd(shell .. "emoji toggle"))
+-- The shell's lock screen (ext-session-lock); lock on idle and before
+-- sleep are Control Panel > Screen lock.
+hl.bind(mod .. " + L", hl.dsp.exec_cmd(shell .. "lock now"))
 
 hl.bind(mod .. " + SHIFT + code:20", hl.dsp.exec_cmd("alacritty-opacity --opacdown"))
 hl.bind(mod .. " + SHIFT + code:21", hl.dsp.exec_cmd("alacritty-opacity --opacup"))
 
-hl.bind("ALT + C", hl.dsp.exec_cmd("hyprpicker"))
+-- Colour picker: click a pixel, its #rrggbb goes to the clipboard.
+hl.bind("ALT + C", hl.dsp.exec_cmd(shell .. "picker pick"))
 
 hl.bind(mod .. " + mouse_down", hl.dsp.focus({ workspace = "e+1" }))
 hl.bind(mod .. " + mouse_up", hl.dsp.focus({ workspace = "e-1" }))
@@ -60,11 +64,12 @@ hl.bind(mod .. " + SHIFT + T", hl.dsp.window.move({ workspace = "special:tokyo_m
 
 hl.bind(mod .. " + B", hl.dsp.exec_cmd(programs.browser))
 hl.bind(mod .. " + ALT + B", hl.dsp.exec_cmd(programs.browser_alt))
-hl.bind(mod .. " + SHIFT + P", hl.dsp.exec_cmd("fanhypr-qs-restart"))
+hl.bind(mod .. " + SHIFT + P", hl.dsp.exec_cmd("fanshell-qs-restart"))
 hl.bind(mod .. " + P", hl.dsp.exec_cmd("pavucontrol"))
 
 hl.bind("Print", hl.dsp.exec_cmd(programs.screenshot_region))
 hl.bind("SHIFT + Print", hl.dsp.exec_cmd(programs.screenshot_output))
+hl.bind("CTRL + Print", hl.dsp.exec_cmd(programs.screenshot_screen))
 
 hl.bind("CTRL + ALT + Tab", hl.dsp.exec_cmd(programs.screenshot_region))
 hl.bind("CTRL + SHIFT + ALT + Tab", hl.dsp.exec_cmd(programs.screenshot_output))

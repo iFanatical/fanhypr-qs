@@ -1,1 +1,1 @@
-hl.env("FANHYPR_TUN_COUNT", "1")
+-- vpn.tunnels=1 in ~/.config/fanshell-qs/shell.conf on this machine.
