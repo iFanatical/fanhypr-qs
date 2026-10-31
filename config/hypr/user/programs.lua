@@ -1,0 +1,18 @@
+return {
+    terminal = "alacritty",
+    file_manager = "thunar",
+    browser = "gtk-launch $(xdg-settings get default-web-browser)",
+    browser_alt = "firefox",
+    media_play_pause = "playerctl play-pause",
+    volume_down = "fanhypr-qs-shell ipc call audio volume-down",
+    volume_up = "fanhypr-qs-shell ipc call audio volume-up",
+    volume_mute = "fanhypr-qs-shell ipc call audio toggle-mute",
+    microphone_mute = "fanhypr-qs-shell ipc call audio toggle-mic",
+    monitor_brightness_up = "fanhypr-qs-shell ipc call brightness monitor-up",
+    monitor_brightness_down = "fanhypr-qs-shell ipc call brightness monitor-down",
+    brightness_up = "fanhypr-qs-shell ipc call brightness up",
+    brightness_down = "fanhypr-qs-shell ipc call brightness down",
+    screenshot_region = "hyprshot --mode region --output $HOME/Pictures/screenshots",
+    screenshot_output = "hyprshot --mode output --output $HOME/Pictures/screenshots",
+    shell = "fanhypr-qs-shell",
+}
