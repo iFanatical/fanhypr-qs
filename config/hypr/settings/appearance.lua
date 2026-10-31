@@ -19,7 +19,7 @@ hl.config({
         shadow = { enabled = true, range = 4, render_power = 3, color = 0xee1a1b26 },
         blur = { enabled = true, size = 3, passes = 2, vibrancy = 0.1696 },
     },
-    animations = { enabled = true },
+    animations = { enabled = false },
 })
 
 hl.curve("easeOutQuint", { type = "bezier", points = { { 0.23, 1 }, { 0.32, 1 } } })
