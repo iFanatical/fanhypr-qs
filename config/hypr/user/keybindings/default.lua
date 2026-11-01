@@ -23,12 +23,23 @@ hl.bind(mod .. " + SHIFT + H", hl.dsp.window.resize({ x = -10, y = 0, relative =
 hl.bind(mod .. " + SHIFT + J", hl.dsp.window.resize({ x = 0, y = 10, relative = true }), { repeating = true })
 hl.bind(mod .. " + SHIFT + K", hl.dsp.window.resize({ x = 0, y = -10, relative = true }), { repeating = true })
 
-for key = 1, 5 do
-    hl.bind(mod .. " + " .. key, hl.dsp.focus({ workspace = key }))
-    hl.bind(mod .. " + SHIFT + " .. key, hl.dsp.window.move({ workspace = key, follow = false }))
+-- Per-monitor workspaces where the host's config/workspaces file turns them
+-- on (config/monitor_workspaces.lua); otherwise Mod+1-5 are workspaces 1-5
+-- and Alt+1-5 are 6-10.
+local monitor_workspaces = require("config/monitor_workspaces")
+if monitor_workspaces.enabled then
+    monitor_workspaces.bind(mod)
+else
+    for key = 1, 5 do
+        hl.bind(mod .. " + " .. key, hl.dsp.focus({ workspace = key }))
+        hl.bind(mod .. " + SHIFT + " .. key, hl.dsp.window.move({ workspace = key, follow = false }))
 
-    hl.bind("ALT + " .. key, hl.dsp.focus({ workspace = key + 5 }))
-    hl.bind("ALT + SHIFT + " .. key, hl.dsp.window.move({ workspace = key + 5, follow = false }))
+        hl.bind("ALT + " .. key, hl.dsp.focus({ workspace = key + 5 }))
+        hl.bind("ALT + SHIFT + " .. key, hl.dsp.window.move({ workspace = key + 5, follow = false }))
+    end
+
+    hl.bind(mod .. " + mouse_down", hl.dsp.focus({ workspace = "e+1" }))
+    hl.bind(mod .. " + mouse_up", hl.dsp.focus({ workspace = "e-1" }))
 end
 
 local shell = programs.shell .. " ipc call "
@@ -49,9 +60,6 @@ hl.bind(mod .. " + SHIFT + code:21", hl.dsp.exec_cmd("alacritty-opacity --opacup
 
 -- Colour picker: click a pixel, its #rrggbb goes to the clipboard.
 hl.bind("ALT + C", hl.dsp.exec_cmd(shell .. "picker pick"))
-
-hl.bind(mod .. " + mouse_down", hl.dsp.focus({ workspace = "e+1" }))
-hl.bind(mod .. " + mouse_up", hl.dsp.focus({ workspace = "e-1" }))
 
 hl.bind(mod .. " + mouse:272", hl.dsp.window.drag(), { mouse = true })
 hl.bind(mod .. " + mouse:273", hl.dsp.window.resize(), { mouse = true })

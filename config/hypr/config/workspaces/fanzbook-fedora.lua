@@ -1,7 +1,3 @@
-for workspace = 1, 5 do
-    hl.workspace_rule({
-        workspace = workspace,
-        monitor = workspace <= 5 and "eDP-1",
-        default = workspace == 1,
-    })
-end
+-- 1-5 on the laptop's panel; a monitor plugged in takes 6-10, each
+-- numbered 1-5 on its monitor (config/monitor_workspaces.lua).
+require("config/monitor_workspaces").setup({ "eDP-1" })
