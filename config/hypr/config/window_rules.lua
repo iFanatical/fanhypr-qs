@@ -264,6 +264,15 @@ hl.window_rule ({
     match = { initial_class = "^(tokyo-music)$" },
 })
 hl.window_rule({
+    tag = "+flt",
+    match = { initial_class = "^(tokyo-music)$" },
+})
+hl.window_rule({
+    size = { 1440, 976 },
+    match = { initial_class = "^(tokyo-music)$" },
+    center = 1,
+})
+hl.window_rule({
     workspace = "special:tokyo_music",
     match = { tag = "tokyomusic" },
 })
