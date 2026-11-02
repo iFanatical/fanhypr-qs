@@ -87,6 +87,14 @@ What the shell runs under Hyprland:
 | grim | `grim` | `gui-apps/grim` | `grim` | screenshots and the colour picker |
 | jq | `jq` | `app-misc/jq` | `jq` | the Displays popup's saved layouts (`fanshell-qs-outputs`) |
 
+For video wallpapers (optional; without them a video in the picker is a
+still, or nothing):
+
+| What | Fedora | Gentoo | Arch | For |
+|---|---|---|---|---|
+| libmpv | `mpv-libs-devel` | `media-video/mpv` with USE `libmpv` (and `vaapi` for decoding straight into the GPU's memory) | `mpv` | playing them; needed when the shell is built |
+| ffmpeg | `ffmpeg-free` (or `ffmpeg` from RPM Fusion) | `media-video/ffmpeg` | `ffmpeg` | a video's first frame: its thumbnail and the lock screen |
+
 Not needed any more, and best removed from autostart if another config
 starts them: awww or swww, hyprpaper, hyprvibrance, hyprsunset, hyprlock,
 hypridle and hyprshot. The shell does each of their jobs, and some would
@@ -104,7 +112,7 @@ fight it over the same thing (the screen shader, the wallpaper layer).
 
 The programs behind the special workspaces and a few keys are yours to
 install, and their keys do nothing without them: Discord and TeamSpeak
-(per host, under `user/keybindings/`), `fanos-launch-webapp` for Tokyo
+(per host, under `user/keybindings/`), `tokyo-music-tui` for Tokyo
 Music (Mod+T), and gpu-screen-recorder-ui (`gsr-ui`).
 
 The shell's optional features (NetworkManager, BlueZ, brightnessctl,
