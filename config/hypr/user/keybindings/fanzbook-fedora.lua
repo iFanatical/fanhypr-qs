@@ -11,3 +11,6 @@ hl.bind(mod .. " + X", function()
     hl.dispatch(hl.dsp.workspace.toggle_special("teamspeak"))
 end)
 hl.bind(mod .. " + SHIFT + X", hl.dsp.window.move({ workspace = "special:teamspeak", follow = false }))
+
+-- Toggle the focused workspace between master and scrolling.
+require("config/scrolling").bind(mod .. " + S")
