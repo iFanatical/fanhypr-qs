@@ -1,6 +1,6 @@
 return {
     terminal = "alacritty",
-    file_manager = "thunar",
+    file_manager = "fanfm",
     browser = "gtk-launch $(xdg-settings get default-web-browser)",
     browser_alt = "firefox",
     -- Tokyo Music TUI in its own terminal; the class lets the window rule
