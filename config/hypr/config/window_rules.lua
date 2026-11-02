@@ -261,7 +261,7 @@ hl.window_rule({
 -- tokyo music
 hl.window_rule ({
     tag = "+tokyomusic",
-    match = { initial_class = "^(brave-fanatical.privatedns.org__-Default)$" },
+    match = { initial_class = "^(tokyo-music)$" },
 })
 hl.window_rule({
     workspace = "special:tokyo_music",

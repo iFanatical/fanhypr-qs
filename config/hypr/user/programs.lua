@@ -3,6 +3,9 @@ return {
     file_manager = "thunar",
     browser = "gtk-launch $(xdg-settings get default-web-browser)",
     browser_alt = "firefox",
+    -- Tokyo Music TUI in its own terminal; the class lets the window rule
+    -- (config/window_rules.lua) send it to the tokyo_music special workspace.
+    tokyo_music = "alacritty --class tokyo-music -e tokyo-music-tui",
     media_play_pause = "playerctl play-pause",
     volume_down = "fanshell-qs-shell ipc call audio volume-down",
     volume_up = "fanshell-qs-shell ipc call audio volume-up",
