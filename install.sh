@@ -19,11 +19,12 @@ if [ ! -f "$shell_dir/tools/lib.sh" ]; then
     exit 1
 fi
 # parse_dry_run, step, run, die, require_user, need, need_shell,
-# need_shell_wayland, install_needed, link
+# need_shell_wayland, need_shell_optional, need_optional_begin/end,
+# install_needed, link
 . "$shell_dir/tools/lib.sh"
 parse_dry_run "$@"
 require_user
-command -v need_shell_wayland >/dev/null 2>&1 ||
+command -v need_shell_optional >/dev/null 2>&1 ||
     die "fanshell-qs at $shell_dir is older than this repo; git pull there and run again"
 flag=
 [ "$dry_run" = 1 ] && flag=--dry-run
@@ -38,6 +39,17 @@ need /usr/share/xdg-desktop-portal/portals/hyprland.portal \
 # asked about once) before anything is linked or built.
 need_shell
 need_shell_wayland
+# Everything else too, so a fresh install has every feature: what the shell
+# can do without (video wallpapers, Wi-Fi, Bluetooth, ...) and what the
+# config starts or binds. One still missing after the install (a Gentoo USE
+# flag, say) is reported, not fatal.
+need_shell_optional
+need_optional_begin
+need Xwayland xorg-x11-server-Xwayland x11-base/xwayland xorg-xwayland \
+    "X11 programs, and their tray icons"
+need firefox firefox www-client/firefox firefox "Mod+Alt+B"
+need pavucontrol pavucontrol media-sound/pavucontrol pavucontrol "Mod+P"
+need_optional_end
 install_needed
 
 step "fanhypr-qs: linking the session (hypr/, hyprland-portals.conf)"

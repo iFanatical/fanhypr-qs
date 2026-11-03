@@ -44,9 +44,12 @@ same feature set as under qtile:
 
 ## Requirements
 
-Package names are Fedora / Gentoo / Arch. `install.sh` checks for all of the
-required ones, offers to install what is missing (`dnf`, `emerge` or
-`pacman`, through sudo) and stops without them.
+Package names are Fedora / Gentoo / Arch. `install.sh` checks for all of
+them, the optional ones included, and offers to install what is missing
+(`dnf`, `emerge` or `pacman`, through sudo). It stops without a required
+one; an optional one it could not install (a Gentoo USE flag `emerge` does
+not turn on, say) is reported and left out. On Fedora it enables RPM Fusion
+first when it needs its `ffmpeg` or VA-API driver.
 
 ### Required
 
@@ -93,7 +96,14 @@ still, or nothing):
 | What | Fedora | Gentoo | Arch | For |
 |---|---|---|---|---|
 | libmpv | `mpv-libs-devel` | `media-video/mpv` with USE `libmpv` (and `vaapi` for decoding straight into the GPU's memory) | `mpv` | playing them; needed when the shell is built |
-| ffmpeg | `ffmpeg-free` (or `ffmpeg` from RPM Fusion) | `media-video/ffmpeg` | `ffmpeg` | a video's first frame: its thumbnail and the lock screen |
+| ffmpeg | `ffmpeg` from RPM Fusion (`dnf swap ffmpeg-free ffmpeg --allowerasing`): Fedora's own `ffmpeg-free` decodes neither H.264 nor HEVC, which most video wallpapers are | `media-video/ffmpeg` | `ffmpeg` | a video's first frame: its thumbnail and the lock screen; and, through libmpv, playing it |
+| The GPU's VA-API driver | Intel: `intel-media-driver` (RPM Fusion nonfree); AMD: `mesa-va-drivers-freeworld` (RPM Fusion) | Intel: `media-libs/libva-intel-media-driver`; AMD: `media-libs/mesa` with USE `vaapi` | Intel: `intel-media-driver`; AMD: `libva-mesa-driver` | decoding on the GPU instead of several CPU cores |
+| libva-utils | `libva-utils` | `media-video/libva-utils` | `libva-utils` | `vainfo`, which lists what the GPU decodes |
+
+A video the GPU cannot decode plays on the CPU, which for 4K can take
+several cores: AV1 on Intel graphics before 11th generation (Tiger Lake),
+for example. `wallpaper.video=gpu` in `~/.config/fanshell-qs/shell.conf`
+shows such a video's first frame instead.
 
 Not needed any more, and best removed from autostart if another config
 starts them: awww or swww, hyprpaper, hyprvibrance, hyprsunset, hyprlock,
@@ -122,7 +132,9 @@ packages as under X11: see fanshell-qs's
 
 ### Installing
 
-Everything required and used by the config:
+Everything required and used by the config (`install.sh` also installs
+the optional packages above and in fanshell-qs's
+[Optional](https://github.com/iFanatical/fanshell-qs#optional)):
 
 ```sh
 # Fedora
