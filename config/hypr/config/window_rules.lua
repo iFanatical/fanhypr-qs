@@ -277,6 +277,12 @@ hl.window_rule({
     match = { tag = "tokyomusic" },
 })
 
+-- The shell's XEmbed tray host: the bar shows the icons docked in it.
+hl.window_rule({
+    workspace = "special:xembed silent",
+    match = { class = "^(fanshell-qs-xembed)$" },
+})
+
 -- fanos
 hl.window_rule ({
     tag = "+fanos",
