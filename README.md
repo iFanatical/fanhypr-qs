@@ -34,6 +34,7 @@ same feature set as under qtile:
 ```text
 ~/projects/window-managers/
 ├── fanshell-qs/              the shell (build and install it too)
+├── fanvid-qs/                video wallpapers, if wanted (install.sh clones it)
 └── fanhypr-qs/
     ├── install.sh, tools/link-config
     └── config/
@@ -48,8 +49,10 @@ Package names are Fedora / Gentoo / Arch. `install.sh` checks for all of
 them, the optional ones included, and offers to install what is missing
 (`dnf`, `emerge` or `pacman`, through sudo). It stops without a required
 one; an optional one it could not install (a Gentoo USE flag `emerge` does
-not turn on, say) is reported and left out. On Fedora it enables RPM Fusion
-first when it needs its `ffmpeg` or VA-API driver.
+not turn on, say) is reported and left out. It asks first whether to
+install video wallpapers, and checks for their packages only if so. On
+Fedora it enables RPM Fusion first when it needs its `ffmpeg` or VA-API
+driver.
 
 ### Required
 
@@ -90,20 +93,27 @@ What the shell runs under Hyprland:
 | grim | `grim` | `gui-apps/grim` | `grim` | screenshots and the colour picker |
 | jq | `jq` | `app-misc/jq` | `jq` | the Displays popup's saved layouts (`fanshell-qs-outputs`) |
 
-For video wallpapers (optional; without them a video in the picker is a
-still, or nothing):
+### Video wallpapers
+
+Optional: [fanvid-qs](https://github.com/iFanatical/fanvid-qs) plays them,
+decoding each video once on the GPU for every output that shows it.
+`install.sh` asks whether to install it (`VIDEO_WALLPAPERS=yes` or `no`
+answers without asking; with no terminal, an installed fanvid is updated and
+a missing one left out). If so, it clones fanvid-qs beside this repo, unless
+it is there already or at `$FANVID_QS_DIR`, installs these, and builds and
+installs it into `/usr/local/bin`. Without it, the shell's picker offers
+only images. Answering no leaves an installed fanvid in place.
 
 | What | Fedora | Gentoo | Arch | For |
 |---|---|---|---|---|
-| libmpv | `mpv-libs-devel` | `media-video/mpv` with USE `libmpv` (and `vaapi` for decoding straight into the GPU's memory) | `mpv` | playing them; needed when the shell is built |
-| ffmpeg | `ffmpeg` from RPM Fusion (`dnf swap ffmpeg-free ffmpeg --allowerasing`): Fedora's own `ffmpeg-free` decodes neither H.264 nor HEVC, which most video wallpapers are | `media-video/ffmpeg` | `ffmpeg` | a video's first frame: its thumbnail and the lock screen; and, through libmpv, playing it |
-| The GPU's VA-API driver | Intel: `intel-media-driver` (RPM Fusion nonfree); AMD: `mesa-va-drivers-freeworld` (RPM Fusion) | Intel: `media-libs/libva-intel-media-driver`; AMD: `media-libs/mesa` with USE `vaapi` | Intel: `intel-media-driver`; AMD: `libva-mesa-driver` | decoding on the GPU instead of several CPU cores |
+| FFmpeg | `ffmpeg` `ffmpeg-devel` from RPM Fusion: Fedora's own `ffmpeg-free` decodes neither H.264 nor HEVC, which most video wallpapers are | `media-video/ffmpeg` with USE `vaapi` | `ffmpeg` | decoding, and each video's first frame |
+| libva, libdrm | `libva-devel` `libdrm-devel` | `media-libs/libva` `x11-libs/libdrm` | `libva` `libdrm` | handing frames from the GPU to Hyprland |
+| Wayland client, scanner and protocols | `wayland-devel` `wayland-protocols-devel` | `dev-libs/wayland` `dev-util/wayland-scanner` `dev-libs/wayland-protocols` | `wayland` `wayland-protocols` | building fanvid |
+| The GPU's VA-API driver | Intel: `intel-media-driver` (RPM Fusion nonfree); AMD: `mesa-va-drivers-freeworld` (RPM Fusion) | Intel: `media-libs/libva-intel-media-driver`; AMD: `media-libs/mesa` with USE `vaapi` | Intel: `intel-media-driver`; AMD: `libva-mesa-driver` | decoding on the GPU (optional; without it a video shows its first frame) |
 | libva-utils | `libva-utils` | `media-video/libva-utils` | `libva-utils` | `vainfo`, which lists what the GPU decodes |
 
-A video the GPU cannot decode plays on the CPU, which for 4K can take
-several cores: AV1 on Intel graphics before 11th generation (Tiger Lake),
-for example. `wallpaper.video=gpu` in `~/.config/fanshell-qs/shell.conf`
-shows such a video's first frame instead.
+A video the GPU cannot decode (AV1 on Intel graphics before 11th
+generation, for example) shows its first frame instead of playing.
 
 Not needed any more, and best removed from autostart if another config
 starts them: awww or swww, hyprpaper, hyprvibrance, hyprsunset, hyprlock,
