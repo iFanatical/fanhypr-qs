@@ -83,6 +83,12 @@ elif [ "$video" = yes ]; then
 fi
 
 step "fanhypr-qs: checking dependencies"
+# Fedora's own Hyprland is orphaned and long out of date: it is built from
+# source instead (tools/build-hyprland, which bootstrap.sh runs).
+if ! command -v Hyprland >/dev/null 2>&1 && [ -r /etc/os-release ] &&
+    (. /etc/os-release && [ "${ID:-}" = fedora ]); then
+    die "no Hyprland: on Fedora, $repo/tools/build-hyprland builds it from source; run it first"
+fi
 need Hyprland hyprland gui-wm/hyprland hyprland "the compositor"
 need hyprctl hyprland gui-wm/hyprland hyprland "the shell's Hyprland IPC fallbacks"
 need /usr/share/xdg-desktop-portal/portals/hyprland.portal \

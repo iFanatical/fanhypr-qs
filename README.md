@@ -60,8 +60,8 @@ The compositor and the session:
 
 | What | Fedora | Gentoo | Arch | For |
 |---|---|---|---|---|
-| Hyprland | `hyprland` | `gui-wm/hyprland` | `hyprland` | the compositor, and `hyprctl`. `config/hypr` is a Lua config, which needs Hyprland 0.56 or later; check your distribution's version |
-| Hyprland's portal | `xdg-desktop-portal-hyprland` | `gui-libs/xdg-desktop-portal-hyprland` | `xdg-desktop-portal-hyprland` | screen sharing and screenshots for other programs (`hyprland-portals.conf`) |
+| Hyprland | built from source (`tools/build-hyprland`, see [Hyprland on Fedora](#hyprland-on-fedora)) | `gui-wm/hyprland` | `hyprland` | the compositor, and `hyprctl`. `config/hypr` is a Lua config, which needs Hyprland 0.56 or later; check your distribution's version |
+| Hyprland's portal | built with Hyprland | `gui-libs/xdg-desktop-portal-hyprland` | `xdg-desktop-portal-hyprland` | screen sharing and screenshots for other programs (`hyprland-portals.conf`) |
 | xdg-desktop-portal and its GTK backend | `xdg-desktop-portal` `xdg-desktop-portal-gtk` | `sys-apps/xdg-desktop-portal` `sys-apps/xdg-desktop-portal-gtk` | `xdg-desktop-portal` `xdg-desktop-portal-gtk` | file pickers and the colour scheme |
 | D-Bus | `dbus-tools` | `sys-apps/dbus` | `dbus` | notifications, the tray, media controls |
 | glib2 (`gsettings`) | `glib2` | `dev-libs/glib` | `glib2` | GTK theme, icons, font and colour scheme |
@@ -147,8 +147,8 @@ the optional packages above and in fanshell-qs's
 [Optional](https://github.com/iFanatical/fanshell-qs#optional)):
 
 ```sh
-# Fedora
-sudo dnf install hyprland xdg-desktop-portal-hyprland xdg-desktop-portal \
+# Fedora (Hyprland itself from source: tools/build-hyprland, below)
+sudo dnf install xdg-desktop-portal \
     xdg-desktop-portal-gtk dbus-tools glib2 \
     gcc-c++ make pkgconf-pkg-config qt6-qtbase-devel qt6-qtwayland \
     layer-shell-qt-devel wayland-devel wayland-protocols-devel \
@@ -181,6 +181,54 @@ sudo pacman -S hyprland xdg-desktop-portal-hyprland xdg-desktop-portal \
 Plus a Nerd Font (`JetBrainsMono Nerd Font Propo`, from
 [nerdfonts.com](https://www.nerdfonts.com)) for the bar's icons, as in
 the X sessions.
+
+### Hyprland on Fedora
+
+Fedora's own `hyprland` package is orphaned (its last build, 0.45, is for
+Fedora 42), and the current ones come from personal COPR repositories.
+`tools/build-hyprland` builds Hyprland and the libraries it needs from
+their latest releases on GitHub instead, into `/usr/local`:
+hyprwayland-scanner, hyprutils, hyprlang, hyprcursor, hyprgraphics,
+hyprwire, aquamarine, hyprland-protocols, hyprtoolkit, Hyprland,
+xdg-desktop-portal-hyprland and hyprland-guiutils, with their build
+dependencies from Fedora's own repositories. Hyprland's Lua config wants
+Lua 5.5, which Fedora 44 does not have, so it builds that from lua.org too
+(a static library, linked into Hyprland).
+
+```sh
+tools/build-hyprland [--dry-run]   # build what has a newer release, and install it
+```
+
+Run it again to update: a part is rebuilt when its latest release is newer
+than the one installed, or when a part it builds on was rebuilt. Each
+part's previous files are removed first, so nothing stale is left behind.
+It adds `/usr/local/lib64` to the dynamic linker's path, and links the
+portal's definition into `/usr/share/xdg-desktop-portal/portals`, the
+only place xdg-desktop-portal looks.
+
+### A fresh Fedora install
+
+`bootstrap.sh` sets up the whole desktop on a minimal Fedora (Server)
+install, from the console:
+
+```sh
+sudo dnf install -y git
+git clone https://github.com/iFanatical/fanhypr-qs.git ~/projects/window-managers/fanhypr-qs
+~/projects/window-managers/fanhypr-qs/bootstrap.sh [--dry-run]
+```
+
+It asks first for the machine's hostname, whether to install video
+wallpapers, whether to hide the Fedora name, and whether to turn SELinux
+off; the rest runs unattended, with one sudo password. It updates the
+system, installs what a minimal install lacks for a desktop (Mesa, PipeWire,
+fonts), clones (or pulls) fanshell-qs, fanhypr-qs and, for video
+wallpapers, fanvid-qs, starts this machine's files in `config/hypr` from
+another's when its hostname is new, fetches the shell's Nerd Font, builds
+Hyprland (`tools/build-hyprland`), and runs `install.sh`. Hiding the
+Fedora name hides the boot menu (it still appears after a failed boot, or
+with Shift held), drops the boot splash's logo, and puts the hostname in the
+console login's banner; `/etc/os-release` stays as it is, as `dnf` needs
+it. Run it again to update everything.
 
 ## Running it
 

@@ -1,0 +1,248 @@
+#!/bin/sh
+# Build Hyprland and the libraries it needs from their latest releases, into
+# /usr/local, on Fedora, whose own Hyprland package is orphaned.
+#
+#     tools/build-hyprland [--dry-run]
+#
+# Run it as yourself; only the installs use sudo. Run it again to update:
+# each part is rebuilt when its latest release tag is newer than the one
+# installed, or when a part before it was rebuilt (whose ABI it builds
+# against). Sources are kept in ~/.cache/fanhypr-qs/src.
+#
+# Each part's previous files are removed before the new ones go in, so
+# nothing stale is left, and a running Hyprland's binary is replaced rather
+# than overwritten. Log out of Hyprland and back in after an update.
+#
+# PREFIX (default /usr/local) installs elsewhere; one you can write to is
+# installed into without sudo, and without the system's library path and
+# portal links (for trying a build). HYPR_DEPS=skip leaves the build
+# dependencies alone (on another distribution, say).
+set -eu
+
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+shell_dir=${FANSHELL_QS_DIR:-"$repo/../fanshell-qs"}
+[ -f "$shell_dir/tools/lib.sh" ] ||
+    { printf 'error: fanshell-qs not found at %s\n' "$shell_dir" >&2; exit 1; }
+# parse_dry_run, step, run, die, require_user, detect_distro
+. "$shell_dir/tools/lib.sh"
+parse_dry_run "$@"
+require_user
+
+prefix=${PREFIX:-/usr/local}
+src=${HYPR_SRC_DIR:-"${XDG_CACHE_HOME:-$HOME/.cache}/fanhypr-qs/src"}
+state=$prefix/share/fanhypr-qs/hyprland
+
+# In build order: each needs only those before it.
+stack="hyprwayland-scanner hyprutils hyprlang hyprcursor hyprgraphics hyprwire
+       aquamarine hyprland-protocols hyprtoolkit Hyprland
+       xdg-desktop-portal-hyprland hyprland-guiutils"
+
+# What they need from Fedora, by what they ask for (pkgconfig, cmake), as
+# their packages' BuildRequires list it. glaze, which Fedora lacks,
+# Hyprland's build fetches itself.
+deps="cmake gcc gcc-c++ git meson ninja-build gtest-devel mesa-libEGL-devel
+      muParser-devel cmake(pugixml) pkgconfig(absl_flat_hash_map)
+      pkgconfig(cairo) pkgconfig(egl) pkgconfig(gbm) pkgconfig(gio-2.0)
+      pkgconfig(glesv2) pkgconfig(glslang) pkgconfig(hwdata) pkgconfig(iniparser)
+      pkgconfig(lcms2) pkgconfig(libcanberra) pkgconfig(libdisplay-info)
+      pkgconfig(libdrm) pkgconfig(libeis-1.0) pkgconfig(libffi) pkgconfig(libheif)
+      pkgconfig(libinput) pkgconfig(libjpeg) pkgconfig(libjxl) pkgconfig(libjxl_cms)
+      pkgconfig(libjxl_threads) pkgconfig(libliftoff) pkgconfig(libmagic)
+      pkgconfig(libpipewire-0.3) pkgconfig(libpng) pkgconfig(librsvg-2.0)
+      pkgconfig(libseat) pkgconfig(libsystemd) pkgconfig(libudev) pkgconfig(libwebp)
+      pkgconfig(libzip) pkgconfig(lua) pkgconfig(pango) pkgconfig(pangocairo)
+      pkgconfig(pixman-1) pkgconfig(pugixml) pkgconfig(re2) pkgconfig(readline)
+      pkgconfig(sdbus-c++) pkgconfig(systemd) pkgconfig(tomlplusplus) pkgconfig(uuid)
+      pkgconfig(wayland-client) pkgconfig(wayland-protocols) pkgconfig(wayland-scanner)
+      pkgconfig(wayland-server) pkgconfig(xcb) pkgconfig(xcb-composite)
+      pkgconfig(xcb-dri3) pkgconfig(xcb-errors) pkgconfig(xcb-ewmh) pkgconfig(xcb-icccm)
+      pkgconfig(xcb-present) pkgconfig(xcb-render) pkgconfig(xcb-renderutil)
+      pkgconfig(xcb-res) pkgconfig(xcb-shm) pkgconfig(xcb-util) pkgconfig(xcb-xfixes)
+      pkgconfig(xcb-xinput) pkgconfig(xcursor) pkgconfig(xkbcommon) pkgconfig(xwayland)
+      xorg-x11-server-Xwayland"
+
+# Into the prefix: through sudo unless it is writable as is.
+system=1
+mkdir -p "$prefix" 2>/dev/null || true
+if [ -w "$prefix" ]; then
+    system=0
+    as_root() { run "$@"; }
+else
+    as_root() { run sudo "$@"; }
+fi
+
+# The newest release tag of github.com/hyprwm/$1 (v1.2.3, or 1.2.3).
+latest_tag() {
+    git ls-remote --tags --refs "https://github.com/hyprwm/$1.git" |
+        sed 's|.*refs/tags/||' | grep -E '^v?[0-9]+(\.[0-9]+)*$' | sort -V | tail -n 1
+}
+
+step "Hyprland: build dependencies"
+detect_distro
+if [ "${HYPR_DEPS:-}" = skip ]; then
+    echo "skipped (HYPR_DEPS=skip)"
+elif [ "$distro" = fedora ]; then
+    # shellcheck disable=SC2086
+    run sudo dnf install -y $deps
+else
+    die "installing the build dependencies is written for Fedora; install them yourself and run with HYPR_DEPS=skip"
+fi
+
+# Where the build finds what it built before, and the system finds it after.
+export PKG_CONFIG_PATH="$prefix/lib64/pkgconfig:$prefix/lib/pkgconfig:$prefix/share/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+export CMAKE_PREFIX_PATH="$prefix${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}"
+export PATH="$prefix/bin:$PATH"
+if [ "$system" = 0 ]; then
+    export LD_LIBRARY_PATH="$prefix/lib64:$prefix/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+else
+    step "Hyprland: the system's library path"
+    # Fedora's dynamic linker does not look in /usr/local by default.
+    conf=/etc/ld.so.conf.d/fanhypr-qs.conf
+    if [ -f "$conf" ] && grep -qx "$prefix/lib64" "$conf"; then
+        echo "ok      $conf"
+    else
+        if [ "$dry_run" = 1 ]; then
+            printf '  would: write %s (%s/lib64, %s/lib), and run ldconfig\n' "$conf" "$prefix" "$prefix"
+        else
+            printf '%s\n%s\n' "$prefix/lib64" "$prefix/lib" | sudo tee "$conf" >/dev/null
+            sudo ldconfig
+            echo "wrote   $conf"
+        fi
+    fi
+fi
+
+# Whether pkg-config finds a Lua 5.5, by any of the names Hyprland's build
+# looks for.
+have_lua55() {
+    for _m in lua55 lua5.5 lua-55 lua-5.5; do
+        pkg-config --exists "$_m" 2>/dev/null && return 0
+    done
+    pkg-config --exists 'lua >= 5.5' 2>/dev/null && pkg-config --exists 'lua < 5.6' 2>/dev/null
+}
+
+# Hyprland's Lua config wants Lua 5.5, and Fedora 44 ships 5.4 (its
+# packagers edit the check out and build against 5.4). Without a system 5.5,
+# the latest 5.5 release from lua.org, checked against the sum it lists, as
+# a static library with a lua55.pc for Hyprland's build -- and no lua
+# binary, which would shadow the system's. Sets rebuild when it changes, as
+# Hyprland links it in.
+build_lua() {
+    step "Hyprland: Lua 5.5"
+    _have=$(cat "$state/lua.version" 2>/dev/null || true)
+    if [ -z "$_have" ] && have_lua55; then
+        echo "ok      the system's"
+        return 0
+    fi
+    _page=$(curl -fsSL https://www.lua.org/ftp/) || die "cannot reach lua.org"
+    _file=$(printf '%s\n' "$_page" | grep -oE 'lua-5\.5\.[0-9]+\.tar\.gz' | sort -uV | tail -n 1)
+    _sum=$(printf '%s\n' "$_page" | grep -A 3 "HREF=\"$_file\"" |
+        sed -n 's/.*CLASS="sum">\([0-9a-f]*\)<.*/\1/p')
+    [ -n "$_file" ] && [ -n "$_sum" ] || die "cannot find Lua 5.5's release on lua.org"
+    _ver=${_file#lua-}
+    _ver=${_ver%.tar.gz}
+    if [ "$_ver" = "$_have" ]; then
+        echo "ok      $_ver"
+        return 0
+    fi
+    echo "${_have:-none} -> $_ver"
+    rebuild=1
+    if [ "$dry_run" = 1 ]; then
+        printf '  would: fetch %s, build it, and install it into %s\n' "$_file" "$prefix"
+        return 0
+    fi
+    curl -fsSL -o "$src/$_file" "https://www.lua.org/ftp/$_file" || die "fetching $_file failed"
+    printf '%s  %s\n' "$_sum" "$src/$_file" | sha256sum -c --quiet - ||
+        die "$_file does not match lua.org's checksum"
+    rm -rf "$src/lua-$_ver"
+    tar -xzf "$src/$_file" -C "$src"
+    # Position-independent, for linking into Hyprland (a PIE).
+    make -C "$src/lua-$_ver" -j "$(nproc)" linux MYCFLAGS=-fPIC >/dev/null ||
+        die "building Lua $_ver failed"
+    if [ -f "$state/lua.manifest" ]; then
+        tr '\n' '\0' <"$state/lua.manifest" | as_root xargs -0 rm -f
+    fi
+    _inc=$prefix/include/lua5.5
+    _pc=$prefix/lib64/pkgconfig/lua55.pc
+    as_root install -D -m 644 "$src/lua-$_ver/src/liblua.a" "$prefix/lib64/liblua5.5.a"
+    for _h in lua.h luaconf.h lualib.h lauxlib.h lua.hpp; do
+        as_root install -D -m 644 "$src/lua-$_ver/src/$_h" "$_inc/$_h"
+    done
+    printf '%s\n' "prefix=$prefix" 'libdir=${prefix}/lib64' 'includedir=${prefix}/include/lua5.5' '' \
+        'Name: Lua' "Description: Lua $_ver, for Hyprland (fanhypr-qs's build-hyprland)" \
+        "Version: $_ver" 'Libs: -L${libdir} -llua5.5 -lm' 'Cflags: -I${includedir}' |
+        as_root install -D -m 644 /dev/stdin "$_pc"
+    printf '%s\n' "$prefix/lib64/liblua5.5.a" "$_pc" \
+        "$_inc/lua.h" "$_inc/luaconf.h" "$_inc/lualib.h" "$_inc/lauxlib.h" "$_inc/lua.hpp" |
+        as_root tee "$state/lua.manifest" >/dev/null
+    printf '%s\n' "$_ver" | as_root tee "$state/lua.version" >/dev/null
+    echo "installed Lua $_ver"
+}
+
+mkdir -p "$src"
+as_root mkdir -p "$state"
+rebuild=0
+for name in $stack; do
+    [ "$name" = Hyprland ] && build_lua
+    step "Hyprland: $name"
+    tag=$(latest_tag "$name")
+    [ -n "$tag" ] || die "cannot find $name's releases on GitHub"
+    have=$(cat "$state/$name.version" 2>/dev/null || true)
+    if [ "$rebuild" = 0 ] && [ "$tag" = "$have" ]; then
+        echo "ok      $tag"
+        continue
+    fi
+    if [ "$rebuild" = 1 ] && [ "$tag" = "$have" ]; then
+        echo "$tag, rebuilt against the parts before it"
+    else
+        echo "${have:-none} -> $tag"
+    fi
+    rebuild=1
+    dir=$src/$name
+    if [ "$dry_run" = 1 ]; then
+        printf '  would: fetch %s, build it, and install it into %s\n' "$tag" "$prefix"
+        continue
+    fi
+    if [ -d "$dir/.git" ]; then
+        git -C "$dir" fetch -q --tags --force origin
+    else
+        git clone -q "https://github.com/hyprwm/$name.git" "$dir"
+    fi
+    git -C "$dir" checkout -q --detach "$tag"
+    git -C "$dir" submodule update -q --init --recursive
+    rm -rf "$dir/build"
+    cmake -S "$dir" -B "$dir/build" -G Ninja -Wno-dev \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX="$prefix" \
+        -DCMAKE_INSTALL_LIBDIR=lib64 \
+        -DBUILD_TESTING=OFF >/dev/null ||
+        die "configuring $name $tag failed (cmake -S $dir -B $dir/build shows why)"
+    cmake --build "$dir/build" -j "$(nproc)" || die "building $name $tag failed"
+    # The previous build's files out first: stale ones go, and running
+    # programs keep their old (unlinked) copies.
+    if [ -f "$state/$name.manifest" ]; then
+        tr '\n' '\0' <"$state/$name.manifest" | as_root xargs -0 rm -f
+    fi
+    as_root cmake --install "$dir/build" >/dev/null || die "installing $name $tag failed"
+    as_root cp "$dir/build/install_manifest.txt" "$state/$name.manifest"
+    printf '%s\n' "$tag" | as_root tee "$state/$name.version" >/dev/null
+    [ "$system" = 0 ] || as_root ldconfig
+    echo "installed $name $tag"
+done
+
+# xdg-desktop-portal looks for portal definitions only in its own data
+# directory, /usr/share (setting XDG_DESKTOP_PORTAL_DIR would hide the GTK
+# portal beside it).
+if [ "$system" = 1 ] && [ "$prefix" != /usr ]; then
+    step "Hyprland: the portal definition"
+    portal=/usr/share/xdg-desktop-portal/portals/hyprland.portal
+    if [ "$(readlink "$portal" 2>/dev/null)" = "$prefix/share/xdg-desktop-portal/portals/hyprland.portal" ]; then
+        echo "ok      $portal"
+    else
+        as_root mkdir -p "$(dirname "$portal")"
+        as_root ln -sf "$prefix/share/xdg-desktop-portal/portals/hyprland.portal" "$portal"
+        [ "$dry_run" = 1 ] || echo "linked  $portal"
+    fi
+fi
+
+step "Hyprland: done"
+[ "$rebuild" = 0 ] || echo "Log out of Hyprland and back in (or start it) to run the new build."
