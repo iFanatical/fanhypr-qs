@@ -1,0 +1,2 @@
+-- The desktop (fanteks-gentoo before it moved to Fedora).
+-- vpn.tunnels=1 in ~/.config/fanshell-qs/shell.conf on this machine.

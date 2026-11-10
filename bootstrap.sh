@@ -1,11 +1,13 @@
 #!/bin/sh
 # Set up this desktop on a fresh Fedora minimal (Server) install, from a
 # console: the desktop basics a minimal install lacks, Hyprland built from
-# source, and fanshell-qs, fanhypr-qs and (if wanted) fanvid-qs.
+# source, and fanshell-qs, fanhypr-qs and (if wanted) fanvid-qs. It needs
+# nothing but itself; it clones the repos, fanhypr-qs too:
 #
-#     sudo dnf install -y git
-#     git clone https://github.com/iFanatical/fanhypr-qs.git ~/projects/window-managers/fanhypr-qs
-#     ~/projects/window-managers/fanhypr-qs/bootstrap.sh [--dry-run]
+#     curl -fsSLO https://raw.githubusercontent.com/iFanatical/fanhypr-qs/main/bootstrap.sh
+#     sh bootstrap.sh [--dry-run]
+#
+# (Downloaded first, not piped into sh: its questions read the terminal.)
 #
 # Run it as yourself; it asks for your sudo password once. It asks its
 # questions first and then runs to the end. Run it again later to update
@@ -60,7 +62,6 @@ main() {
     [ "${ID:-}" = fedora ] || die "this is for Fedora (this is ${ID:-unknown})"
     [ -t 0 ] || die "run this from a terminal: it asks a few questions first"
     command -v sudo >/dev/null 2>&1 || die "sudo is needed"
-    command -v git >/dev/null 2>&1 || die "git is needed first: sudo dnf install -y git"
 
     wm_dir=${WM_DIR:-"$HOME/projects/window-managers"}
     github=https://github.com/iFanatical
@@ -91,6 +92,10 @@ main() {
     (while kill -0 $$ 2>/dev/null; do sudo -n true 2>/dev/null; sleep 50; done) &
     keepalive=$!
     trap 'kill $keepalive 2>/dev/null || true' EXIT INT TERM
+    if ! command -v git >/dev/null 2>&1; then
+        say "git, for the repos"
+        run sudo dnf install -y git
+    fi
 
     # ------------------------------------------------------------ the repos
     say "the repos, in $wm_dir"

@@ -212,10 +212,13 @@ only place xdg-desktop-portal looks.
 install, from the console:
 
 ```sh
-sudo dnf install -y git
-git clone https://github.com/iFanatical/fanhypr-qs.git ~/projects/window-managers/fanhypr-qs
-~/projects/window-managers/fanhypr-qs/bootstrap.sh [--dry-run]
+curl -fsSLO https://raw.githubusercontent.com/iFanatical/fanhypr-qs/main/bootstrap.sh
+sh bootstrap.sh [--dry-run]
 ```
+
+It needs nothing but itself: it installs git and clones the repos,
+fanhypr-qs included (download it first rather than piping it into `sh`, as
+its questions read the terminal).
 
 It asks first for the machine's hostname, whether to install video
 wallpapers, whether to hide the Fedora name, and whether to turn SELinux
