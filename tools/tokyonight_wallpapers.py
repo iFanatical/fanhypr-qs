@@ -7,15 +7,22 @@ Styles:  city, bokeh, aurora, synthwave, coderain   (or: all)
 Every animated element moves with an integer number of cycles per loop,
 so the last frame flows straight back into the first — no visible seam.
 
-Requires: python3, numpy, scipy, pillow, ffmpeg (libx264).
-  Arch:   sudo pacman -S python-numpy python-scipy python-pillow ffmpeg noto-fonts-cjk
+Requires: python3, numpy, scipy, pillow, and an ffmpeg with libx264. Noto Sans
+CJK gives coderain its katakana; without it, coderain falls back to ASCII.
+  Gentoo: sudo emerge dev-python/numpy dev-python/scipy dev-python/pillow \
+              media-fonts/noto-cjk          # and media-video/ffmpeg with USE=x264
+  Fedora: sudo dnf install python3-numpy python3-scipy python3-pillow \
+              google-noto-sans-cjk-fonts ffmpeg   # RPM Fusion's ffmpeg: ffmpeg-free has no libx264
+
+Videos land as tokyonight_<style>.mp4. Write them into fanshell-qs's wallpaper
+directory (wallpaper.dir, default ~/Pictures/wallpapers) and they show up in the
+wallpaper picker, played by fanvid (fanvid-qs) with VA-API.
 
 Examples:
-  ./tokyonight_wallpapers.py all                         # 5 videos, 1920x1080, 30 s loops
+  ./tokyonight_wallpapers.py all -o ~/Pictures/wallpapers   # 5 videos, 1920x1080, 30 s loops
   ./tokyonight_wallpapers.py city --duration 60 --fps 60
-  ./tokyonight_wallpapers.py aurora --seed 7 -o ~/Videos/wallpapers
-  ./tokyonight_wallpapers.py synthwave --preview          # write a few PNG stills only
-  mpvpaper -o "loop no-audio" '*' tokyonight_city.mp4
+  ./tokyonight_wallpapers.py aurora --seed 7 --width 3840 --height 2160
+  ./tokyonight_wallpapers.py synthwave --preview             # write a few PNG stills only
 """
 import argparse
 import glob
