@@ -8,3 +8,6 @@ require("config/monitor_workspaces").setup({
     "desc:Acer Technologies Acer XFA240",
     "desc:BNQ BenQ GW2790T 6BR0209401Q",
 })
+
+-- Windows stack top to bottom on a vertical monitor (config/vertical_monitors.lua).
+require("config/vertical_monitors").setup()
