@@ -84,7 +84,7 @@ hl.window_rule ({
 })
 -- Skyrim itself fullscreen (after the 489830 catch-all above, which floats
 -- its loader windows), so Hyprland can scan its frames out directly and VRR
--- follows it. It was floating before; see gts-review, 2026-11-16.
+-- follows it. Floating, every frame went through the compositor.
 hl.window_rule ({
     match = { title = "^(The Elder Scrolls V: Skyrim Special Edition)$" },
     float = 0,
