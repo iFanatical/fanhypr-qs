@@ -59,11 +59,6 @@ hl.window_rule ({
     fullscreen = 1,
 })
 hl.window_rule ({
-    match = { title = "^(The Elder Scrolls V: Skyrim Special Edition)$" },
-    float = 1,
-    fullscreen = 0,
-})
-hl.window_rule ({
     tag = "+games",
     match = { class = "^(org.prismlauncher.PrismLauncher)$" },
 })
@@ -86,6 +81,14 @@ hl.window_rule ({
     tag = "+games",
     match = { class = "^(steam_app_489830)$", title = "^(Vortex)$" },
     fullscreen = 0,
+})
+-- Skyrim itself fullscreen (after the 489830 catch-all above, which floats
+-- its loader windows), so Hyprland can scan its frames out directly and VRR
+-- follows it. It was floating before; see gts-review, 2026-11-16.
+hl.window_rule ({
+    match = { title = "^(The Elder Scrolls V: Skyrim Special Edition)$" },
+    float = 0,
+    fullscreen = 1,
 })
 hl.window_rule ({
     workspace = "4 silent",
