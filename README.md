@@ -126,7 +126,7 @@ fight it over the same thing (the screen shader, the wallpaper layer).
 |---|---|---|---|---|
 | XWayland | `xorg-x11-server-Xwayland` | `x11-base/xwayland` | `xorg-xwayland` | X11 programs, and their tray icons |
 | Alacritty | `alacritty` | `x11-terms/alacritty` | `alacritty` | the terminal (Mod+Return) |
-| A polkit agent | `mate-polkit` | `mate-extra/mate-polkit` | `mate-polkit` | password prompts (`user/autostart.lua`) |
+| A polkit agent | `mate-polkit` | `mate-extra/mate-polkit` | `mate-polkit` | password prompts (`user/autostart/default.lua`) |
 | xsettingsd | `xsettingsd` | `x11-misc/xsettingsd` | `xsettingsd` | GTK/Qt settings for XWayland programs |
 | Thunar, Firefox, pavucontrol | `thunar` `firefox` `pavucontrol` | `xfce-base/thunar` `www-client/firefox` `media-sound/pavucontrol` | `thunar` `firefox` `pavucontrol` | Mod+E, Mod+Alt+B, Mod+P (`user/programs.lua`) |
 
@@ -245,7 +245,7 @@ removes the old `fanhypr-qs-*` programs from `/usr/local/bin`, and runs
 fanshell-qs's `tools/install-shell` with `WAYLAND=1`, so the build fails
 rather than leaving Hyprland support out. `--dry-run` lists the steps.
 
-Hyprland starts the shell (`user/autostart.lua`). The shell's settings are
+Hyprland starts the shell (`user/autostart/default.lua`). The shell's settings are
 `~/.config/fanshell-qs/shell.conf`, the same file under every window
 manager (`vpn.tunnels`, `ups.host`, ...), not Hyprland environment
 variables.

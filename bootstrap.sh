@@ -118,8 +118,8 @@ main() {
     # fanhypr-qs keeps a file per machine (monitors, workspaces, keys and
     # environment), by hostname. A new name starts from another machine's.
     # Hyprland reads /etc/hostname and loads <hostname>.lua from each of
-    # config/environment, config/workspaces, settings/monitors and
-    # user/keybindings, falling back on the defaults.
+    # config/environment, config/workspaces, settings/monitors,
+    # user/keybindings and user/autostart, falling back on the defaults.
     per_host=$hypr/config/hypr
     if [ "$dry_run" = 0 ] && [ -d "$per_host" ] &&
         [ -z "$(find "$per_host" -mindepth 3 -name "$host.lua" -print -quit)" ]; then
