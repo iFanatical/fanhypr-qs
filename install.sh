@@ -106,6 +106,9 @@ need_shell_optional
 need_optional_begin
 need Xwayland xorg-x11-server-Xwayland x11-base/xwayland xorg-xwayland \
     "X11 programs, and their tray icons"
+# config/environment sets QT_QPA_PLATFORMTHEME=qt6ct; without it Qt
+# programs quietly fall back to Qt's default theme and font.
+need qt6ct qt6ct gui-apps/qt6ct qt6ct "Qt programs' theme and font (QT_QPA_PLATFORMTHEME)"
 need firefox firefox www-client/firefox firefox "Mod+Alt+B"
 need pavucontrol pavucontrol media-sound/pavucontrol pavucontrol "Mod+P"
 need_optional_end

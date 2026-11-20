@@ -128,6 +128,7 @@ fight it over the same thing (the screen shader, the wallpaper layer).
 | Alacritty | `alacritty` | `x11-terms/alacritty` | `alacritty` | the terminal (Mod+Return) |
 | A polkit agent | `mate-polkit` | `mate-extra/mate-polkit` | `mate-polkit` | password prompts (`user/autostart/default.lua`) |
 | xsettingsd | `xsettingsd` | `x11-misc/xsettingsd` | `xsettingsd` | GTK/Qt settings for XWayland programs |
+| qt6ct | `qt6ct` | `gui-apps/qt6ct` | `qt6ct` | Qt programs' theme and font (`QT_QPA_PLATFORMTHEME`, `config/environment/default.lua`) |
 | Thunar, Firefox, pavucontrol | `thunar` `firefox` `pavucontrol` | `xfce-base/thunar` `www-client/firefox` `media-sound/pavucontrol` | `thunar` `firefox` `pavucontrol` | Mod+E, Mod+Alt+B, Mod+P (`user/programs.lua`) |
 
 The programs behind the special workspaces and a few keys are yours to
