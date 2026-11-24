@@ -280,6 +280,21 @@ hl.window_rule({
     match = { tag = "tokyomusic" },
 })
 
+-- roleplay journal (~/.local/bin/rp-journal, Super+N)
+hl.window_rule({
+    tag = "+flt",
+    match = { initial_class = "^(rp-journal)$" },
+})
+hl.window_rule({
+    size = { 1100, 760 },
+    match = { initial_class = "^(rp-journal)$" },
+    center = 1,
+})
+hl.window_rule({
+    workspace = "special:journal",
+    match = { initial_class = "^(rp-journal)$" },
+})
+
 -- The shell's XEmbed tray host: the bar shows the icons docked in it.
 hl.window_rule({
     workspace = "special:xembed silent",
