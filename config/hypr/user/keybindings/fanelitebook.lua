@@ -14,3 +14,6 @@ hl.bind(mod .. " + SHIFT + X", hl.dsp.window.move({ workspace = "special:teamspe
 
 -- Toggle the focused workspace between master and scrolling.
 require("config/scrolling").bind(mod .. " + S")
+
+-- Pause and resume Lan Mouse, for when the laptop is away from the desk.
+require("config/lan_mouse").bind(mod .. " + SHIFT + M")
