@@ -6,6 +6,8 @@ hl.bind(mod .. " + SHIFT + C", hl.dsp.window.close())
 hl.bind(mod .. " + SHIFT + BackSpace", hl.dsp.exec_cmd("command -v hyprshutdown >/dev/null 2>&1 && hyprshutdown || hyprctl dispatch 'hl.dsp.exit()'"))
 hl.bind(mod .. " + E", hl.dsp.exec_cmd(programs.file_manager))
 hl.bind(mod .. " + SHIFT + Space", hl.dsp.window.float({ action = "toggle" }))
+-- Center the focused floating window on its monitor.
+hl.bind(mod .. " + ALT + Space", hl.dsp.window.center())
 hl.bind("ALT + P", hl.dsp.window.pseudo())
 hl.bind(mod .. " + SHIFT + F", hl.dsp.window.fullscreen({ mode = "fullscreen", action = "toggle" }))
 hl.bind(mod .. " + F", hl.dsp.window.fullscreen({ mode = "maximized", action = "toggle" }))
@@ -50,7 +52,7 @@ else
 end
 
 local shell = programs.shell .. " ipc call "
-hl.bind(mod .. " + ALT + Space", hl.dsp.exec_cmd(shell .. "menu toggle"))
+hl.bind(mod .. " + SHIFT + W", hl.dsp.exec_cmd(shell .. "menu toggle"))
 hl.bind(mod .. " + Space", hl.dsp.exec_cmd(shell .. "launcher toggle"))
 hl.bind(mod .. " + R", hl.dsp.exec_cmd(shell .. "runner toggle"))
 hl.bind("ALT + V", hl.dsp.exec_cmd(shell .. "vpn tun1 toggle"))
